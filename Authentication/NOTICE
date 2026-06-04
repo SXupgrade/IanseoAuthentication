@@ -1,0 +1,9 @@
+Compet+ Authentication Module for Ianseo
+
+This module is made available by Compet+.
+Website: https://competplus.fr
+
+Attribution requirement:
+When reusing, modifying, redistributing, or deriving work from this module, keep the LICENSE file and this NOTICE file with the distributed source or binary package, and preserve visible attribution to Compet+ where reasonably possible in administration screens or documentation.
+
+This module is not the official commercial Ianseo Authentication module. It uses public Ianseo hook points and existing Ianseo ACL tables.
