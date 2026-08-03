@@ -21,10 +21,15 @@ Modules/Authentication/index.php
 
 - `AuthFunctions.php`: session/login helpers, user table bootstrap, password hashing.
 - `BlockFunction.php`: Ianseo ACL hook implementation.
-- `LogIn.php`: login page.
+- `LogIn.php`: login page (local form + optional "Se connecter avec Compet+" button).
 - `LogOut.php`: logout action.
 - `index.php`: minimal admin page for users and tournament/feature rules.
-- `menu.php`: adds Authentication/Logout menu entries when possible.
+- `Account.php`: self-service page for the CURRENTLY logged-in user to link/unlink their Compet+
+  identity — see "Compet+ federated login" below.
+- `CompetplusOAuth.php`: OAuth2/OIDC client (Authorization Code + PKCE) talking to
+  `auth.competplus.fr`.
+- `CompetplusStart.php` / `CompetplusCallback.php`: entry/exit points of that flow.
+- `menu.php`: adds Authentication/Account/Logout menu entries when possible.
 
 ## Data model
 
@@ -32,6 +37,54 @@ Uses the existing Ianseo tables:
 
 - `AclUsers`
 - `AclUserFeatures`
+
+Plus one table owned entirely by this module (never added as columns on the native tables
+above): `AclUserExternalAuth` (`Provider`, `AclUsUser`, `ExternalId`, `LinkedAt`) — links a local
+account to an external identity provider. See "Compet+ federated login" below.
+
+## Compet+ federated login ("Se connecter avec Compet+")
+
+Optional, in addition to the local login form — never replaces it. Delegates authentication to
+`auth.competplus.fr` (OAuth2/OIDC, Authorization Code + PKCE, confidential client) while ACL/rights
+stay entirely in `AclUserFeatures` as today; Compet+ only ever supplies an identity (`sub` +
+e-mail), never a role.
+
+**This never creates an Ianseo account automatically.** `AclUsers` has no e-mail column to match
+against, so linking only happens the other way around: an already-authenticated local user visits
+`Account.php` and clicks "Link my Compet+ account", which completes an OAuth round-trip and
+records the pairing in `AclUserExternalAuth`. From then on, that person can also log in via the
+"Se connecter avec Compet+" button on `LogIn.php` — it looks up the Compet+ `sub` in
+`AclUserExternalAuth` and signs in directly if a match exists, or sends them back to the local
+login form with an explanatory message if it doesn't (never a silent/degraded fallback).
+
+### Enable it
+
+1. Get a `client_id`/`client_secret` from a Compet+ admin (`POST /api/v1/auth/admin/oauth-clients`
+   on `competplus-platform`) with `redirect_uri` set to
+   `https://your-ianseo-domain/Modules/Authentication/CompetplusCallback.php` (exact match
+   required, no dynamic query string).
+2. In Ianseo's `config.php` (NOT part of this module — a per-deployment setting, exactly like
+   `$CFG->USERAUTH` above), add:
+
+```php
+$CFG->USERAUTH = true;
+$CFG->COMPETPLUS_AUTH = array(
+    'client_id' => 'your-client-id',
+    'client_secret' => 'the-secret-shown-once-at-creation',
+    'auth_base_url' => 'https://auth.competplus.fr',
+    'redirect_uri' => 'https://your-ianseo-domain/Modules/Authentication/CompetplusCallback.php',
+);
+```
+
+The "Se connecter avec Compet+" button only appears once this block is present with a non-empty
+`client_id`/`redirect_uri` — omit it (or leave a key empty) to keep the feature entirely hidden.
+
+### Not yet implemented
+
+No consent screen on the Compet+ side yet for third-party clients (see `competplus-platform`
+docs) — acceptable while clients are manually vetted, to revisit before wider rollout. No admin
+UI to link/unlink OTHER users' accounts (only self-service via `Account.php`) — an admin who needs
+to do this today would need direct DB access to `AclUserExternalAuth`.
 
 ## Rule format
 

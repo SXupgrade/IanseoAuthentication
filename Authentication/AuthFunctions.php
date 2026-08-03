@@ -25,6 +25,22 @@ function authEnsureTables()
         `AclUFFeature` TEXT NOT NULL,
         PRIMARY KEY (`AclUFUser`, `AclUFPattern`)
     ) ENGINE=InnoDB", false, array(1050));
+
+    // Links a local AclUsers account to an external identity provider (Compet+ "Login with
+    // Compet+" federated auth, see CompetplusOAuth.php). Owned entirely by this module (unlike
+    // AclUsers/AclUserFeatures above, which are native Ianseo tables) -- never added as extra
+    // columns on AclUsers, to avoid touching a table core Ianseo also manages.
+    // PRIMARY KEY (Provider, AclUsUser): a local account has at most one linked identity per
+    // provider. UNIQUE (Provider, ExternalId): an external identity can be linked to at most one
+    // local account -- both directions enforced at the DB level, not just in application code.
+    safe_w_SQL("CREATE TABLE IF NOT EXISTS `AclUserExternalAuth` (
+        `Provider` VARCHAR(32) NOT NULL,
+        `AclUsUser` VARCHAR(16) NOT NULL,
+        `ExternalId` VARCHAR(64) NOT NULL,
+        `LinkedAt` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (`Provider`, `AclUsUser`),
+        UNIQUE KEY `UqAclUserExternalAuthExternalId` (`Provider`, `ExternalId`)
+    ) ENGINE=InnoDB", false, array(1050));
 }
 
 function authNormalizeUsername($username)
@@ -387,11 +403,16 @@ function authIsPublicRequest()
     $pathLower = strtolower($path);
 
     // Authentication module entry points must remain reachable without a session.
+    // CompetplusStart.php/CompetplusCallback.php: entry/exit points of the "Se connecter avec
+    // Compet+" federated login (see CompetplusOAuth.php) -- reached before any local session
+    // exists, exactly like LogIn.php/LogOut.php below.
     $publicFragments = array(
         '/modules/authentication/login.php',
         '/modules/authentication/logout.php',
         '/modules/authentication/authfunctions.php',
         '/modules/authentication/blockfunction.php',
+        '/modules/authentication/competplusstart.php',
+        '/modules/authentication/competpluscallback.php',
     );
     foreach ($publicFragments as $fragment) {
         if (strpos($pathLower, $fragment) !== false) {
@@ -493,6 +514,101 @@ function authRequireLoginForRequest($force = false)
     exit();
 }
 
+
+// ── "Se connecter avec Compet+" (auth.competplus.fr) ──────────────────────────
+// Config lives in Ianseo's own config.php (site-owner-controlled, like $CFG->USERAUTH), NOT in
+// this module -- see README.md "Compet+ federated login" for the block to add. Never assume a
+// default client_id/secret: the feature is simply hidden (button not shown, entry points refuse)
+// until an admin configures it.
+function authCompetplusConfig()
+{
+    global $CFG;
+    if (empty($CFG->COMPETPLUS_AUTH) || !is_array($CFG->COMPETPLUS_AUTH)) {
+        return null;
+    }
+    $cfg = $CFG->COMPETPLUS_AUTH;
+    $clientId = trim((string)($cfg['client_id'] ?? ''));
+    $redirectUri = trim((string)($cfg['redirect_uri'] ?? ''));
+    if ($clientId === '' || $redirectUri === '') {
+        return null;
+    }
+    return array(
+        'client_id' => $clientId,
+        'client_secret' => (string)($cfg['client_secret'] ?? ''),
+        'auth_base_url' => rtrim((string)($cfg['auth_base_url'] ?? 'https://auth.competplus.fr'), '/'),
+        'redirect_uri' => $redirectUri,
+    );
+}
+
+function authCompetplusEnabled()
+{
+    return authCompetplusConfig() !== null;
+}
+
+// Local account currently linked to a given Compet+ identity ("sub"), or null.
+function authFindUserByExternalId($provider, $externalId)
+{
+    authEnsureTables();
+    $sql = "SELECT `AclUsUser` FROM `AclUserExternalAuth` WHERE `Provider`=" . StrSafe_DB($provider)
+        . " AND `ExternalId`=" . StrSafe_DB($externalId) . " LIMIT 1";
+    $q = safe_r_SQL($sql);
+    if ($r = safe_fetch($q)) {
+        return authLoadUser($r->AclUsUser);
+    }
+    return null;
+}
+
+// Linked identity for a local account (for display on Account.php), or null.
+function authGetLinkedExternalIdentity($username, $provider)
+{
+    authEnsureTables();
+    $username = authNormalizeUsername($username);
+    if ($username === '') {
+        return null;
+    }
+    $sql = "SELECT * FROM `AclUserExternalAuth` WHERE `Provider`=" . StrSafe_DB($provider)
+        . " AND `AclUsUser`=" . StrSafe_DB($username) . " LIMIT 1";
+    $q = safe_r_SQL($sql);
+    if ($r = safe_fetch($q)) {
+        return $r;
+    }
+    return null;
+}
+
+// Links $username (an EXISTING, already-authenticated local account -- this function never
+// creates one) to an external identity. Refuses if that identity is already linked to a
+// DIFFERENT local account, rather than silently stealing the link.
+function authLinkExternalIdentity($username, $provider, $externalId, &$error = '')
+{
+    authEnsureTables();
+    $username = authNormalizeUsername($username);
+    if ($username === '' || !authLoadUser($username)) {
+        $error = 'Unknown local account.';
+        return false;
+    }
+
+    $existingOwner = authFindUserByExternalId($provider, $externalId);
+    if ($existingOwner && (string)$existingOwner->AclUsUser !== $username) {
+        $error = 'This Compet+ account is already linked to another Ianseo user.';
+        return false;
+    }
+
+    safe_w_SQL("INSERT INTO `AclUserExternalAuth` (`Provider`, `AclUsUser`, `ExternalId`) VALUES ("
+        . StrSafe_DB($provider) . ", " . StrSafe_DB($username) . ", " . StrSafe_DB($externalId)
+        . ") ON DUPLICATE KEY UPDATE `ExternalId`=" . StrSafe_DB($externalId) . ", `LinkedAt`=NOW()");
+    return true;
+}
+
+function authUnlinkExternalIdentity($username, $provider)
+{
+    authEnsureTables();
+    $username = authNormalizeUsername($username);
+    if ($username === '') {
+        return;
+    }
+    safe_w_SQL("DELETE FROM `AclUserExternalAuth` WHERE `Provider`=" . StrSafe_DB($provider)
+        . " AND `AclUsUser`=" . StrSafe_DB($username));
+}
 
 function authBootstrapRequest()
 {

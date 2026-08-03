@@ -3,7 +3,7 @@ require_once(dirname(__FILE__) . '/../../config.php');
 require_once(dirname(__FILE__) . '/AuthFunctions.php');
 
 authEnsureTables();
-$error = '';
+$error = !empty($_GET['competplus_error']) ? (string)$_GET['competplus_error'] : '';
 $isInitialSetup = authIsInitialSetupRequired();
 
 function authLoginReturnUrl()
@@ -45,7 +45,7 @@ $PAGE_TITLE = $isInitialSetup ? 'Authentication setup' : 'Authentication';
 include($CFG->DOCUMENT_PATH . 'Common/Templates/head.php');
 ?>
 <style>
-.cp-auth-shell{max-width:860px;margin:22px auto;padding:0 14px}.cp-auth-hero{border:1px solid #d8e3f0;border-radius:18px;background:linear-gradient(135deg,#f7fbff 0%,#ffffff 55%,#eef7f3 100%);box-shadow:0 18px 40px rgba(30,55,90,.08);overflow:hidden}.cp-auth-brand{display:flex;gap:14px;align-items:center;padding:18px 20px;border-bottom:1px solid #e7edf5}.cp-auth-logo{width:48px;height:48px;border-radius:14px;background:#10233f;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:22px;letter-spacing:-.04em}.cp-auth-title{margin:0;font-size:24px;line-height:1.15}.cp-auth-subtitle{margin:4px 0 0;color:#5f6f83}.cp-auth-body{padding:20px}.cp-auth-note{margin-top:14px;padding:11px 13px;border-radius:12px;background:#f3f7fb;border:1px solid #dde8f3;color:#3e4f63}.cp-auth-note a{font-weight:700}.cp-auth-footer{padding:12px 20px;border-top:1px solid #e7edf5;background:#fbfdff;color:#6a7787;font-size:.95em}.cp-auth-footer a{font-weight:700}.cp-auth-form table.Tabella{width:100%}.cp-auth-form input[type=text],.cp-auth-form input[type=password]{max-width:340px;width:90%}@media(max-width:720px){.cp-auth-brand{align-items:flex-start}.cp-auth-title{font-size:21px}}
+.cp-auth-shell{max-width:860px;margin:22px auto;padding:0 14px}.cp-auth-hero{border:1px solid #d8e3f0;border-radius:18px;background:linear-gradient(135deg,#f7fbff 0%,#ffffff 55%,#eef7f3 100%);box-shadow:0 18px 40px rgba(30,55,90,.08);overflow:hidden}.cp-auth-brand{display:flex;gap:14px;align-items:center;padding:18px 20px;border-bottom:1px solid #e7edf5}.cp-auth-logo{width:48px;height:48px;border-radius:14px;background:#10233f;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:22px;letter-spacing:-.04em}.cp-auth-title{margin:0;font-size:24px;line-height:1.15}.cp-auth-subtitle{margin:4px 0 0;color:#5f6f83}.cp-auth-body{padding:20px}.cp-auth-note{margin-top:14px;padding:11px 13px;border-radius:12px;background:#f3f7fb;border:1px solid #dde8f3;color:#3e4f63}.cp-auth-note a{font-weight:700}.cp-auth-footer{padding:12px 20px;border-top:1px solid #e7edf5;background:#fbfdff;color:#6a7787;font-size:.95em}.cp-auth-footer a{font-weight:700}.cp-auth-form table.Tabella{width:100%}.cp-auth-form input[type=text],.cp-auth-form input[type=password]{max-width:340px;width:90%}.cp-btn{display:inline-block;padding:.5rem 1.1rem;border-radius:8px;text-decoration:none;font-size:.9rem;font-weight:600;background:#10233f;color:#fff}.cp-btn:hover{background:#1c3a63}@media(max-width:720px){.cp-auth-brand{align-items:flex-start}.cp-auth-title{font-size:21px}}
 </style>
 <div class="cp-auth-shell">
   <div class="cp-auth-hero">
@@ -85,6 +85,12 @@ include($CFG->DOCUMENT_PATH . 'Common/Templates/head.php');
                 <tr><td colspan="2" class="Center"><input type="submit" value="Login"></td></tr>
             </table>
         </form>
+        <?php if (authCompetplusEnabled()) { ?>
+        <p style="text-align:center;color:#5f6f83;margin:14px 0">or</p>
+        <p style="text-align:center">
+            <a class="cp-btn" href="CompetplusStart.php<?php echo $returnUrl !== '' ? '?return=' . rawurlencode($returnUrl) : ''; ?>">Se connecter avec Compet+</a>
+        </p>
+        <?php } ?>
     <?php } ?>
     <div class="cp-auth-note">This authentication module is made available by <a href="https://competplus.fr" target="_blank" rel="noopener noreferrer">Compet+</a>.</div>
     </div>
