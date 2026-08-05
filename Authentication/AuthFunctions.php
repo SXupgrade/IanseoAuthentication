@@ -43,6 +43,94 @@ function authEnsureTables()
     ) ENGINE=InnoDB", false, array(1050));
 }
 
+// ── i18n ───────────────────────────────────────────────────────────────────
+// Self-contained translation files under Languages/<code>.php -- this module's own folder, NOT
+// Ianseo core's Common/Languages/ tree (get_text()'s usual home). Keeps the module a single
+// drop-in copy with nothing to install into Ianseo core. Language DETECTION still reuses
+// Ianseo's own SelectLanguage() (cookie/query/browser, see Common/Globals.inc.php) when
+// available, so this module automatically follows whatever language a visitor already has for
+// the rest of Ianseo -- no separate first-time choice needed, though a small switcher is still
+// shown on this module's own pages (authLanguageSwitcherHtml()) since Ianseo's own page chrome
+// isn't present on a bare login screen.
+function authAvailableLanguages()
+{
+    static $codes = null;
+    if ($codes !== null) {
+        return $codes;
+    }
+    $codes = array();
+    foreach (glob(dirname(__FILE__) . '/Languages/*.php') as $file) {
+        $codes[] = basename($file, '.php');
+    }
+    sort($codes);
+    return $codes;
+}
+
+function authCurrentLanguage()
+{
+    $detected = 'en';
+    if (function_exists('SelectLanguage')) {
+        $detected = strtolower((string)SelectLanguage());
+    } elseif (!empty($_COOKIE['UseLanguage'])) {
+        $detected = strtolower((string)$_COOKIE['UseLanguage']);
+    }
+    return in_array($detected, authAvailableLanguages(), true) ? $detected : 'en';
+}
+
+function authLoadLanguageStrings($code)
+{
+    static $cache = array();
+    if (isset($cache[$code])) {
+        return $cache[$code];
+    }
+    $lang = array();
+    $file = dirname(__FILE__) . '/Languages/' . $code . '.php';
+    if (file_exists($file)) {
+        include $file; // defines $lang
+    }
+    $cache[$code] = $lang;
+    return $lang;
+}
+
+// 'en' is always merged in first as a fallback base: a language file that's missing a newer key
+// (translation not caught up yet) still renders readable English instead of a raw/empty string.
+// Simple {placeholder} substitution -- no plural/gender rules; the one genuinely count-dependent
+// string (index.php's "N write / M read") is composed from several authText() calls rather than
+// grammar logic living here, see authAccessLabel().
+function authText($key, $vars = null)
+{
+    $currentLang = authCurrentLanguage();
+    $strings = $currentLang !== 'en'
+        ? array_merge(authLoadLanguageStrings('en'), authLoadLanguageStrings($currentLang))
+        : authLoadLanguageStrings('en');
+
+    $text = isset($strings[$key]) ? $strings[$key] : $key;
+
+    if (is_array($vars)) {
+        foreach ($vars as $name => $value) {
+            $text = str_replace('{' . $name . '}', $value, $text);
+        }
+    }
+
+    return $text;
+}
+
+// Small language switcher reusing Ianseo's own ?SetLanguage= cookie mechanism
+// (Common/Globals.inc.php, top-level code -- runs on every page automatically) -- works on any
+// page of this module with no extra wiring, and preserves the rest of the current query string
+// (e.g. ?return=... on LogIn.php) since Ianseo's own handler takes care of that.
+function authLanguageSwitcherHtml()
+{
+    $current = authCurrentLanguage();
+    $links = array();
+    foreach (authAvailableLanguages() as $code) {
+        $label = htmlspecialchars(strtoupper($code));
+        $links[] = $code === $current ? '<strong>' . $label . '</strong>'
+            : '<a href="?SetLanguage=' . htmlspecialchars($code) . '">' . $label . '</a>';
+    }
+    return '<div class="cp-lang-switch">' . implode(' &middot; ', $links) . '</div>';
+}
+
 function authNormalizeUsername($username)
 {
     $username = trim((string)$username);
@@ -165,7 +253,7 @@ function authCreateInitialAdmin($username, $name, $password, &$error = '')
     authEnsureTables();
 
     if (!authIsInitialSetupRequired()) {
-        $error = 'Initial setup is no longer available.';
+        $error = authText('ErrSetupNotAvailable');
         return false;
     }
 
@@ -174,22 +262,22 @@ function authCreateInitialAdmin($username, $name, $password, &$error = '')
     $password = (string)$password;
 
     if ($username === '') {
-        $error = 'User is required.';
+        $error = authText('ErrUserRequired');
         return false;
     }
     if (strlen($username) > 16) {
-        $error = 'User must be 16 characters or less.';
+        $error = authText('ErrUserTooLong');
         return false;
     }
     if ($name === '') {
         $name = $username;
     }
     if ($password === '') {
-        $error = 'Password is required.';
+        $error = authText('ErrPasswordRequired');
         return false;
     }
     if (strlen($password) < 8) {
-        $error = 'Password must contain at least 8 characters.';
+        $error = authText('ErrPasswordTooShort');
         return false;
     }
 
@@ -203,7 +291,7 @@ function authCreateInitialAdmin($username, $name, $password, &$error = '')
 
     $user = authLoadUser($username);
     if (!$user) {
-        $error = 'Initial admin was created but could not be loaded.';
+        $error = authText('ErrInitialAdminLoadFailed');
         return false;
     }
 
@@ -330,11 +418,11 @@ function authLogin($username, $password, &$error = '')
 {
     $user = authLoadUser($username);
     if (!$user || !intval($user->AclUsEnabled)) {
-        $error = 'Invalid user or disabled account.';
+        $error = authText('ErrInvalidOrDisabledAccount');
         return false;
     }
     if (!authVerifyPassword($password, $user->AclUsPwd)) {
-        $error = 'Invalid username or password.';
+        $error = authText('ErrInvalidCredentials');
         return false;
     }
     // Keep stored hash as-is: this module intentionally avoids automatic hash migration
@@ -634,13 +722,13 @@ function authLinkExternalIdentity($username, $provider, $externalId, &$error = '
     authEnsureTables();
     $username = authNormalizeUsername($username);
     if ($username === '' || !authLoadUser($username)) {
-        $error = 'Unknown local account.';
+        $error = authText('ErrUnknownLocalAccount');
         return false;
     }
 
     $existingOwner = authFindUserByExternalId($provider, $externalId);
     if ($existingOwner && (string)$existingOwner->AclUsUser !== $username) {
-        $error = 'This Compet+ account is already linked to another Ianseo user.';
+        $error = authText('ErrIdentityAlreadyLinked');
         return false;
     }
 

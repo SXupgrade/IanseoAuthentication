@@ -30,6 +30,36 @@ Modules/Authentication/index.php
   `auth.competplus.fr`.
 - `CompetplusStart.php` / `CompetplusCallback.php`: entry/exit points of that flow.
 - `menu.php`: adds Authentication/Account/Logout menu entries when possible.
+- `Languages/<code>.php`: this module's own translation strings — see "Language" below.
+
+## Language
+
+Every user-facing string in this module goes through `authText($key, $vars = null)`
+(`AuthFunctions.php`), which:
+
+- **Detects the language** the same way the rest of Ianseo does — Ianseo core's own
+  `SelectLanguage()` (`Common/Globals.inc.php`): `?Lang=xx` query param, then the `UseLanguage`
+  cookie (set via `?SetLanguage=xx`, handled automatically by Ianseo core on any page), then the
+  browser's `Accept-Language` header, defaulting to English. A visitor who already picked a
+  language elsewhere in Ianseo gets this module in the same language automatically, no separate
+  choice needed.
+- **Loads strings from this module's own `Languages/<code>.php` files** (`en.php`, `fr.php`), NOT
+  Ianseo core's `Common/Languages/` tree that `get_text()` normally uses — on purpose, so the
+  module stays a single self-contained drop-in folder (step 1 of Install above) with nothing to
+  copy into Ianseo core at install time.
+- **Falls back to English** for any key missing from a non-English file (never a broken/empty
+  string), and to the raw key itself if even the English file is missing it (should never happen
+  in practice — `en.php` and `fr.php` are kept in sync, same key set).
+
+A small language switcher (`authLanguageSwitcherHtml()`) appears on this module's own pages
+(`LogIn.php`, `Account.php`, `index.php`) — reuses Ianseo's own `?SetLanguage=` mechanism, so it
+works with zero extra wiring and preserves the rest of the current query string (e.g.
+`LogIn.php?return=...`).
+
+**Adding a language**: copy `Languages/en.php` to `Languages/<code>.php` (ISO code Ianseo already
+recognizes, e.g. `de`, `es`, `it`) and translate each value — the switcher and `authText()` pick
+it up automatically, no other file to touch. Keep the same key set as `en.php` (a missing key
+falls back to English rather than breaking, but a full translation is obviously better UX).
 
 ## Data model
 

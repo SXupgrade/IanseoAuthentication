@@ -25,7 +25,7 @@ $errorTarget = $pendingMode === 'link' ? './Account.php' : './LogIn.php';
 
 if (!empty($_GET['error'])) {
     unset($_SESSION[COMPETPLUS_OAUTH_SESSION_KEY]);
-    competplusCallbackRedirect($errorTarget, 'Compet+ login was cancelled or refused.');
+    competplusCallbackRedirect($errorTarget, authText('MsgLoginCancelled'));
 }
 
 $code = (string)($_GET['code'] ?? '');
@@ -35,20 +35,20 @@ try {
     $result = authCompetplusCompleteFlow($code, $state);
 } catch (CompetplusOAuthException $e) {
     error_log('[CompetplusCallback] ' . $e->getMessage());
-    competplusCallbackRedirect($errorTarget, 'Compet+ login failed. Please try again or use your local credentials.');
+    competplusCallbackRedirect($errorTarget, authText('MsgLoginFailed'));
 }
 
 if ($result['mode'] === 'link') {
     // The session that started the link must still be the same local user -- refuses a stale or
     // hijacked session from completing a link for someone else's account.
     if (empty($_SESSION['AUTH_User']) || $_SESSION['AUTH_User'] !== $result['linkUsername']) {
-        competplusCallbackRedirect('./Account.php', 'Your session changed during the Compet+ login, please try linking again.');
+        competplusCallbackRedirect('./Account.php', authText('MsgSessionChanged'));
     }
     $linkError = '';
     if (!authLinkExternalIdentity($result['linkUsername'], 'competplus', $result['sub'], $linkError)) {
         competplusCallbackRedirect('./Account.php', $linkError);
     }
-    competplusCallbackRedirect('./Account.php', 'Your Compet+ account is now linked.', false);
+    competplusCallbackRedirect('./Account.php', authText('MsgAccountLinked'), false);
 }
 
 // Links $candidate (if it's a usable, unlinked match) to $sub and returns it, or null if
@@ -88,10 +88,7 @@ if (!$user && !empty($result['accessToken'])) {
 }
 
 if (!$user || !intval($user->AclUsEnabled)) {
-    competplusCallbackRedirect(
-        './LogIn.php',
-        'No Ianseo account is linked to this Compet+ identity yet. Log in with your local credentials, then link your account from "My account".'
-    );
+    competplusCallbackRedirect('./LogIn.php', authText('MsgNoAccountLinked'));
 }
 
 authCreateSession($user, null);

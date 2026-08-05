@@ -24,7 +24,7 @@ try {
 } catch (CompetplusOAuthException $e) {
     error_log('[CompetplusStart] ' . $e->getMessage());
     $target = $mode === 'link' ? './Account.php' : './LogIn.php';
-    CD_redirect($target . '?competplus_error=' . rawurlencode('Compet+ login is temporarily unavailable.'));
+    CD_redirect($target . '?competplus_error=' . rawurlencode(authText('MsgCompetplusUnavailable')));
     die();
 }
 
