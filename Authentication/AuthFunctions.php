@@ -558,6 +558,27 @@ function authFindUserByExternalId($provider, $externalId)
     return null;
 }
 
+// AclUsers has no e-mail column: this only matches installs where the login username itself
+// IS the person's e-mail address (common convention, and AclUsUser being VARCHAR(16) means it
+// only ever matches short addresses -- longer ones simply never match, which is fine, they fall
+// back to the manual link flow on Account.php). Exact, case-insensitive match only -- never a
+// partial/LIKE match, to avoid matching an unrelated short username that happens to be a prefix
+// of an email address.
+function authFindUserByEmailAsUsername($email)
+{
+    $email = strtolower(trim((string)$email));
+    if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        return null;
+    }
+    authEnsureTables();
+    $sql = "SELECT * FROM `AclUsers` WHERE LOWER(`AclUsUser`)=" . StrSafe_DB($email) . " LIMIT 1";
+    $q = safe_r_SQL($sql);
+    if ($r = safe_fetch($q)) {
+        return $r;
+    }
+    return null;
+}
+
 // Linked identity for a local account (for display on Account.php), or null.
 function authGetLinkedExternalIdentity($username, $provider)
 {

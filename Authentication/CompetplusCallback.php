@@ -53,6 +53,23 @@ if ($result['mode'] === 'link') {
 
 // mode === 'login'
 $user = authFindUserByExternalId('competplus', $result['sub']);
+
+// No explicit link yet -- try auto-pairing by e-mail: some Ianseo installs use the person's
+// e-mail address as their login username (AclUsUser). Gated on Compet+'s email_verified (never
+// trust an unverified address for this), and only for a local account that isn't ALREADY linked
+// to a different Compet+ identity (never silently steals an existing manual link, see
+// Account.php) -- that combination falls through to the "no account linked" message below
+// instead, same as any other non-match.
+if (!$user && !empty($result['emailVerified'])) {
+    $candidate = authFindUserByEmailAsUsername($result['email']);
+    if ($candidate && intval($candidate->AclUsEnabled) && !authGetLinkedExternalIdentity($candidate->AclUsUser, 'competplus')) {
+        $linkError = '';
+        if (authLinkExternalIdentity($candidate->AclUsUser, 'competplus', $result['sub'], $linkError)) {
+            $user = $candidate;
+        }
+    }
+}
+
 if (!$user || !intval($user->AclUsEnabled)) {
     competplusCallbackRedirect(
         './LogIn.php',

@@ -49,13 +49,28 @@ Optional, in addition to the local login form — never replaces it. Delegates a
 stay entirely in `AclUserFeatures` as today; Compet+ only ever supplies an identity (`sub` +
 e-mail), never a role.
 
-**This never creates an Ianseo account automatically.** `AclUsers` has no e-mail column to match
-against, so linking only happens the other way around: an already-authenticated local user visits
-`Account.php` and clicks "Link my Compet+ account", which completes an OAuth round-trip and
-records the pairing in `AclUserExternalAuth`. From then on, that person can also log in via the
-"Se connecter avec Compet+" button on `LogIn.php` — it looks up the Compet+ `sub` in
-`AclUserExternalAuth` and signs in directly if a match exists, or sends them back to the local
-login form with an explanatory message if it doesn't (never a silent/degraded fallback).
+**This never creates an Ianseo account automatically.** `AclUsers` has no e-mail column, so a
+first-time Compet+ sign-in is matched against an EXISTING local account through one of two paths,
+never by creating one:
+
+1. **Manual link** (always available): an already-authenticated local user visits `Account.php`
+   and clicks "Link my Compet+ account", which completes an OAuth round-trip and records the
+   pairing in `AclUserExternalAuth`.
+2. **Automatic e-mail pairing** (best-effort, only when it applies): if the local account's login
+   username (`AclUsUser`) IS itself formatted as an e-mail address — a common convention on some
+   installs — and it matches the Compet+ account's e-mail (case-insensitive, exact match) **and**
+   Compet+ reports that e-mail as verified (`email_verified`), the pairing is recorded
+   automatically on first login, no manual step needed. `AclUsUser` is `VARCHAR(16)`, so this only
+   ever matches short e-mail addresses — longer ones simply fall through to the manual link path,
+   never an error. A local account that already has a *different* Compet+ identity linked is never
+   silently re-paired this way (see `authFindUserByEmailAsUsername()` /
+   `CompetplusCallback.php` for the exact guards).
+
+Either way, from then on that person can log in via the "Se connecter avec Compet+" button on
+`LogIn.php` — it looks up the Compet+ `sub` in `AclUserExternalAuth` and signs in directly if a
+match exists, or (after also trying the automatic e-mail pairing above) sends them back to the
+local login form with an explanatory message if nothing matches — never a silent/degraded
+fallback.
 
 ### Enable it
 

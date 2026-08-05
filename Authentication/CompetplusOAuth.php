@@ -116,6 +116,7 @@ function authCompetplusCompleteFlow($code, $state)
     return array(
         'sub' => $profile['sub'],
         'email' => $profile['email'],
+        'emailVerified' => $profile['emailVerified'],
         'mode' => $pending['mode'] === 'link' ? 'link' : 'login',
         'linkUsername' => (string)$pending['link_username'],
         'return' => (string)($pending['return'] ?? ''),
@@ -156,7 +157,11 @@ function authCompetplusFetchUserinfo($accessToken, $config)
         throw new CompetplusOAuthException('Invalid or unreachable Compet+ profile (HTTP ' . $status . ').');
     }
 
-    return array('sub' => (string)$body['sub'], 'email' => (string)$body['email']);
+    return array(
+        'sub' => (string)$body['sub'],
+        'email' => (string)$body['email'],
+        'emailVerified' => !empty($body['email_verified']),
+    );
 }
 
 /**
