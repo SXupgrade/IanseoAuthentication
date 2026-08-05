@@ -143,6 +143,41 @@ docs) — acceptable while clients are manually vetted, to revisit before wider 
 UI to link/unlink OTHER users' accounts (only self-service via `Account.php`) — an admin who needs
 to do this today would need direct DB access to `AclUserExternalAuth`.
 
+## Admin screen (`index.php`)
+
+A table (login / name / status / admin) lists every account, each row with a "⋯" menu:
+**Edit** (identity/password/enabled/admin — modal), **Rights** (per-competition ACL — a separate
+modal), a one-click **Enable/Disable** toggle, and **Delete**. Both modals stay fully server-
+rendered (no AJAX/JSON layer added to the module): clicking a menu entry navigates to
+`?user=<login>&open=edit` or `&open=rights`, and the corresponding modal opens on load — kept
+this way on purpose, consistent with the rest of the module (plain POST forms, full-page reload,
+no client-side state to keep in sync). Only the "⋯" dropdown itself needs a few lines of vanilla
+JS to open/close.
+
+The rights modal shows human-readable feature names (`authText('Feature_AclXxx')` in
+`authFeatureLabel()`) instead of Ianseo's raw internal codes (`AclCompetition`, `AclISKServer`...)
+that `$listACL` exposes as-is — mapped by the feature's numeric id (a stable core `define()`),
+with a fallback to the raw code for any id a future Ianseo core version might add that this module
+doesn't know about yet. Editing an existing rule (via the "Edit" link next to it) now pre-fills
+the permission radios from its current stored value — previously the same form was used for both
+creating and editing, but always started from "no access" on every field, making an edit
+indistinguishable from starting over.
+
+The currently logged-in admin's own row never offers Disable/Delete (only Edit/Rights) — this
+module has no separate account-recovery path, so locking yourself out from this screen would mean
+editing the database directly to get back in.
+
+**Access to competition creation/deletion**: not handled by this module directly (that's core
+Ianseo's `Update/index.php` and `Tournament/TourDelete.php`), but already effectively
+**admin-only** whenever `$CFG->USERAUTH` is enabled — both call Ianseo's `checkFullACL(AclRoot,
+...)`, and this module's `authCheckACL()` only satisfies an `AclRoot` (feature id `0`) request for
+`$_SESSION['AUTH_ROOT']` (i.e. root/admin accounts). The per-competition rights editor above
+deliberately excludes feature id `0` from the grantable list (`if ($id <= 0) continue;`), so a
+non-root user can never be granted tournament creation/deletion through this UI. `Update/index.php`
+additionally hard-redirects any non-root authenticated user to `noAccess.php` before even reaching
+that ACL check. No change was needed here — this was already the behavior, just not obvious
+without reading Ianseo core.
+
 ## Rule format
 
 `AclUserFeatures.AclUFPattern` matches tournament codes:
