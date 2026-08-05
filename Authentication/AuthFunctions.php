@@ -536,6 +536,13 @@ function authCompetplusConfig()
         'client_id' => $clientId,
         'client_secret' => (string)($cfg['client_secret'] ?? ''),
         'auth_base_url' => rtrim((string)($cfg['auth_base_url'] ?? 'https://auth.competplus.fr'), '/'),
+        // Used only for the best-effort FFTA-licence pairing fallback (see
+        // authCompetplusFetchArcherProfile() / authFindUserByLicenceAsUsername()) -- the archer
+        // profile (and its FFTA licence number) is owned by cloud.competplus.fr, not auth, so a
+        // second Bearer-authenticated call is needed with the SAME access_token issued by the
+        // token exchange (opaque platform session tokens are valid across all Compet+ apps, not
+        // just auth -- see competplus_current_user() on the platform side).
+        'cloud_base_url' => rtrim((string)($cfg['cloud_base_url'] ?? 'https://cloud.competplus.fr'), '/'),
         'redirect_uri' => $redirectUri,
     );
 }
@@ -572,6 +579,29 @@ function authFindUserByEmailAsUsername($email)
     }
     authEnsureTables();
     $sql = "SELECT * FROM `AclUsers` WHERE LOWER(`AclUsUser`)=" . StrSafe_DB($email) . " LIMIT 1";
+    $q = safe_r_SQL($sql);
+    if ($r = safe_fetch($q)) {
+        return $r;
+    }
+    return null;
+}
+
+// Same idea as authFindUserByEmailAsUsername(), but for installs that use the archer's FFTA
+// licence number as their login username instead of (or in addition to) an e-mail -- arguably a
+// BETTER fit than e-mail for this module specifically, since an FFTA licence (7 digits + 1
+// letter, 8 chars) comfortably fits AclUsUser's VARCHAR(16), unlike most e-mail addresses.
+// $licence comes from cloud.competplus.fr's archer profile (see
+// authCompetplusFetchArcherProfile()), NOT from auth's userinfo -- auth has no notion of FFTA
+// licence, it belongs to the archer profile owned by cloud (see DATA_OWNERSHIP.md on the
+// competplus-platform repo). Exact, case-insensitive match only.
+function authFindUserByLicenceAsUsername($licence)
+{
+    $licence = strtoupper(trim((string)$licence));
+    if ($licence === '' || strlen($licence) > 16) {
+        return null;
+    }
+    authEnsureTables();
+    $sql = "SELECT * FROM `AclUsers` WHERE UPPER(`AclUsUser`)=" . StrSafe_DB($licence) . " LIMIT 1";
     $q = safe_r_SQL($sql);
     if ($r = safe_fetch($q)) {
         return $r;

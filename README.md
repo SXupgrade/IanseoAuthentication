@@ -50,8 +50,8 @@ stay entirely in `AclUserFeatures` as today; Compet+ only ever supplies an ident
 e-mail), never a role.
 
 **This never creates an Ianseo account automatically.** `AclUsers` has no e-mail column, so a
-first-time Compet+ sign-in is matched against an EXISTING local account through one of two paths,
-never by creating one:
+first-time Compet+ sign-in is matched against an EXISTING local account through one of three
+paths, never by creating one:
 
 1. **Manual link** (always available): an already-authenticated local user visits `Account.php`
    and clicks "Link my Compet+ account", which completes an OAuth round-trip and records the
@@ -61,15 +61,26 @@ never by creating one:
    installs — and it matches the Compet+ account's e-mail (case-insensitive, exact match) **and**
    Compet+ reports that e-mail as verified (`email_verified`), the pairing is recorded
    automatically on first login, no manual step needed. `AclUsUser` is `VARCHAR(16)`, so this only
-   ever matches short e-mail addresses — longer ones simply fall through to the manual link path,
-   never an error. A local account that already has a *different* Compet+ identity linked is never
-   silently re-paired this way (see `authFindUserByEmailAsUsername()` /
-   `CompetplusCallback.php` for the exact guards).
+   ever matches short e-mail addresses — longer ones simply fall through, never an error.
+3. **Automatic FFTA-licence pairing** (best-effort, tried only if #2 didn't match): if `AclUsUser`
+   holds the archer's FFTA licence number instead — arguably a better fit than e-mail here, an FFTA
+   licence (7 digits + 1 letter, 8 chars) comfortably fits `VARCHAR(16)` where most e-mails don't —
+   it's matched (case-insensitive, exact) against the licence number on the Compet+ account's
+   **archer profile**. That profile is NOT part of `auth`'s identity (`sub`/e-mail only): it's
+   fetched with a second Bearer-authenticated call to `cloud.competplus.fr` (same access token —
+   opaque Compet+ session tokens are valid across all Compet+ apps, not just `auth`), silently
+   skipped if the archer has no cloud profile yet or `cloud` is briefly unreachable — never blocks
+   the rest of the flow.
+
+Neither automatic path ever re-pairs a local account that already has a *different* Compet+
+identity linked (see `competplusTryPairCandidate()` in `CompetplusCallback.php` for the shared
+guard) — that case simply falls through to the "no account linked" message below, same as any
+other non-match.
 
 Either way, from then on that person can log in via the "Se connecter avec Compet+" button on
 `LogIn.php` — it looks up the Compet+ `sub` in `AclUserExternalAuth` and signs in directly if a
-match exists, or (after also trying the automatic e-mail pairing above) sends them back to the
-local login form with an explanatory message if nothing matches — never a silent/degraded
+match exists, or (after also trying the two automatic pairing fallbacks above) sends them back to
+the local login form with an explanatory message if nothing matches — never a silent/degraded
 fallback.
 
 ### Enable it
@@ -87,6 +98,7 @@ $CFG->COMPETPLUS_AUTH = array(
     'client_id' => 'your-client-id',
     'client_secret' => 'the-secret-shown-once-at-creation',
     'auth_base_url' => 'https://auth.competplus.fr',
+    'cloud_base_url' => 'https://cloud.competplus.fr', // optional, used only for FFTA-licence pairing (#3 above)
     'redirect_uri' => 'https://your-ianseo-domain/Modules/Authentication/CompetplusCallback.php',
 );
 ```

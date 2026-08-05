@@ -117,6 +117,10 @@ function authCompetplusCompleteFlow($code, $state)
         'sub' => $profile['sub'],
         'email' => $profile['email'],
         'emailVerified' => $profile['emailVerified'],
+        // Kept only so the caller can optionally make a FOLLOW-UP Bearer-authenticated call of
+        // its own (e.g. authCompetplusFetchArcherProfile() for the FFTA-licence pairing
+        // fallback) -- never logged, never persisted anywhere.
+        'accessToken' => (string)$token['access_token'],
         'mode' => $pending['mode'] === 'link' ? 'link' : 'login',
         'linkUsername' => (string)$pending['link_username'],
         'return' => (string)($pending['return'] ?? ''),
@@ -162,6 +166,36 @@ function authCompetplusFetchUserinfo($accessToken, $config)
         'email' => (string)$body['email'],
         'emailVerified' => !empty($body['email_verified']),
     );
+}
+
+/**
+ * Best-effort lookup of the archer's FFTA licence number, for the auto-pairing fallback in
+ * CompetplusCallback.php (see authFindUserByLicenceAsUsername()). The FFTA licence is NOT part of
+ * auth's identity (see authCompetplusFetchUserinfo() above) -- it belongs to the archer profile
+ * owned by cloud.competplus.fr, reached with the SAME access_token (opaque platform session
+ * tokens are valid across all Compet+ apps). Returns null (never throws) on any failure -- an
+ * archer with no cloud profile yet, or cloud being briefly unreachable, must not break the rest
+ * of the login flow (the caller falls through to "no account linked" either way).
+ */
+function authCompetplusFetchArcherProfile($accessToken, $config)
+{
+    try {
+        list($status, $body) = authCompetplusHttpRequest(
+            'GET',
+            $config['cloud_base_url'] . '/api/v1/cloud/profile',
+            null,
+            array('Authorization: Bearer ' . $accessToken)
+        );
+    } catch (CompetplusOAuthException $e) {
+        error_log('[CompetplusOAuth] archer profile lookup failed: ' . $e->getMessage());
+        return null;
+    }
+
+    if ($status !== 200 || empty($body['profile']) || empty($body['profile']['fftaLicence'])) {
+        return null;
+    }
+
+    return array('fftaLicence' => (string)$body['profile']['fftaLicence']);
 }
 
 /**
