@@ -206,6 +206,24 @@ function authLoadUserRules($username)
     return $rules;
 }
 
+// True if $username has been granted AclRoot (full delegated administration) for at least one
+// competition pattern, regardless of which one -- used only to decide whether to surface a
+// "Create a competition" menu link (see menu.php), since Ianseo core's own menu can't do this by
+// itself: it only shows that link when a specific tournament code can already be checked against
+// the user's rules, which is never true before a tournament exists (see
+// Common/Menu.php:513-514's possibleFeature(AclRoot, AclReadWrite) call, evaluated with an empty
+// code). The actual save-time enforcement (Tournament/index.php) is unaffected either way -- this
+// is purely a discoverability aid, not a security boundary.
+function authUserHasAnyRootGrant($username)
+{
+    foreach (authLoadUserRules($username) as $rule) {
+        $parsed = authParseFeatureRules($rule['features']);
+        if (isset($parsed[AclRoot]) && authFeatureEffectiveLevel($parsed[AclRoot]) >= AclReadWrite) {
+            return true;
+        }
+    }
+    return false;
+}
 
 function authCountUsers()
 {
@@ -329,7 +347,12 @@ function authParseFeatureRules($featureString)
         $feature = intval($parts[0]);
         $subFeature = trim((string)$parts[1]);
         $level = max(AclNoAccess, min(AclReadWrite, intval($parts[2])));
-        if ($feature <= 0) {
+        // AclRoot (0) IS a valid, grantable feature here: pattern-scoped delegation (e.g. a rule
+        // for pattern "13092*") intentionally supports granting it -- Ianseo core's own
+        // checkFullACL(AclRoot, ...)/possibleFeature(AclRoot, ...) calls are pattern-aware by
+        // design (see Tournament/index.php's tournament-creation save path). Only truly invalid
+        // (negative) feature ids are rejected.
+        if ($feature < AclRoot) {
             continue;
         }
         if (!isset($acl[$feature])) {

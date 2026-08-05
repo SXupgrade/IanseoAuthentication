@@ -23,6 +23,7 @@ function authSelectedUser() { return authNormalizeUsername($_GET['user'] ?? ($_P
 function authFeatureLabel($id, $rawLabel)
 {
     static $keys = array(
+        0 => 'Feature_AclRoot',
         1 => 'Feature_AclCompetition', 2 => 'Feature_AclInternetPublish', 3 => 'Feature_AclParticipants',
         4 => 'Feature_AclAccreditation', 5 => 'Feature_AclQualification', 6 => 'Feature_AclEliminations',
         7 => 'Feature_AclRobin', 8 => 'Feature_AclIndividuals', 9 => 'Feature_AclTeams',
@@ -80,7 +81,9 @@ function authBuildFeatureStringFromPost()
     foreach (($_POST['perm'] ?? array()) as $feature => $level) {
         $feature = intval($feature);
         $level = intval($level);
-        if ($feature > 0 && $level > AclNoAccess) {
+        // AclRoot (0) included on purpose -- see the matching note in authParseFeatureRules()
+        // (AuthFunctions.php), which is what actually turns this stored string back into a grant.
+        if ($feature >= AclRoot && $level > AclNoAccess) {
             $items[] = $feature . '||' . min(AclReadWrite, $level);
         }
     }
@@ -268,7 +271,8 @@ $PAGE_TITLE = authText('PageTitleAdmin');
 include($CFG->DOCUMENT_PATH . 'Common/Templates/head.php');
 ?>
 <style>
-.cp-admin-shell{max-width:1180px;margin:18px auto;padding:0 12px}.cp-admin-hero{display:flex;justify-content:space-between;gap:18px;align-items:center;margin-bottom:16px;padding:18px 20px;border:1px solid #d8e3f0;border-radius:18px;background:linear-gradient(135deg,#f7fbff 0%,#ffffff 58%,#eef7f3 100%);box-shadow:0 18px 40px rgba(30,55,90,.08)}.cp-admin-brand{display:flex;gap:14px;align-items:center}.cp-admin-logo{width:52px;height:52px;border-radius:15px;background:#10233f;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:23px;letter-spacing:-.04em}.cp-admin-title{margin:0;font-size:26px;line-height:1.15}.cp-admin-subtitle{margin:5px 0 0;color:#5f6f83}.cp-admin-credit{font-size:.95em;color:#5f6f83;text-align:right}.cp-admin-credit a{font-weight:700}.auth-badge{display:inline-block;padding:2px 7px;border-radius:999px;background:#eef3f8;font-size:.85em}.auth-badge.on{background:#eaf8ef;color:#1e7b3a}.auth-badge.off{background:#fdecec;color:#a53939}.auth-badge.root{background:#fff3d6;color:#8a5a00}.auth-permissions{width:100%;border-collapse:collapse}.auth-permissions th,.auth-permissions td{padding:7px;border-bottom:1px solid #edf1f5}.auth-subfeature td{background:#fafcff}.auth-subfeature td:first-child{padding-left:30px}.auth-feature-row td{font-weight:600;background:#fbfdff}.auth-permissions td.Center{text-align:center}.auth-muted{color:#667789}.auth-success{background:#eaf8ef;border:1px solid #9bd0a6;padding:10px 12px;border-radius:10px}.auth-error{background:#fdecec;border:1px solid #e0a0a0;padding:10px 12px;border-radius:10px}.cp-license-note{margin-top:14px;padding:10px 12px;border-radius:10px;background:#f3f7fb;border:1px solid #dde8f3;color:#46586d}.cp-lang-switch{text-align:right;font-size:.8rem;margin-bottom:10px}.cp-lang-switch a{color:#5f6f83;text-decoration:none}.cp-lang-switch a:hover{text-decoration:underline}
+.cp-admin-shell{max-width:1180px;margin:18px auto;padding:0 12px}.cp-admin-hero{display:flex;justify-content:space-between;gap:18px;align-items:center;margin-bottom:16px;padding:18px 20px;border:1px solid #d8e3f0;border-radius:18px;background:linear-gradient(135deg,#f7fbff 0%,#ffffff 58%,#eef7f3 100%);box-shadow:0 18px 40px rgba(30,55,90,.08)}.cp-admin-brand{display:flex;gap:14px;align-items:center}.cp-admin-logo{width:52px;height:52px;border-radius:15px;background:#10233f;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:23px;letter-spacing:-.04em}.cp-admin-title{margin:0;font-size:26px;line-height:1.15}.cp-admin-subtitle{margin:5px 0 0;color:#5f6f83}.cp-admin-credit{font-size:.95em;color:#5f6f83;text-align:right}.cp-admin-credit a{font-weight:700}.auth-badge{display:inline-block;padding:2px 7px;border-radius:999px;background:#eef3f8;font-size:.85em}.auth-badge.on{background:#eaf8ef;color:#1e7b3a}.auth-badge.off{background:#fdecec;color:#a53939}.auth-badge.root{background:#fff3d6;color:#8a5a00}.auth-permissions{width:100%;border-collapse:collapse}.auth-permissions th,.auth-permissions td{padding:7px;border-bottom:1px solid #edf1f5}.auth-subfeature td{background:#fafcff}.auth-subfeature td:first-child{padding-left:30px}.auth-feature-row td{font-weight:600;background:#fbfdff}
+.auth-feature-row-root td{background:#fff8e7!important}.auth-permissions td.Center{text-align:center}.auth-muted{color:#667789}.auth-success{background:#eaf8ef;border:1px solid #9bd0a6;padding:10px 12px;border-radius:10px}.auth-error{background:#fdecec;border:1px solid #e0a0a0;padding:10px 12px;border-radius:10px}.cp-license-note{margin-top:14px;padding:10px 12px;border-radius:10px;background:#f3f7fb;border:1px solid #dde8f3;color:#46586d}.cp-lang-switch{text-align:right;font-size:.8rem;margin-bottom:10px}.cp-lang-switch a{color:#5f6f83;text-decoration:none}.cp-lang-switch a:hover{text-decoration:underline}
 
 .acc-toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:12px}
 .acc-table-wrap{overflow-x:auto;border:1px solid #dde6ef;border-radius:14px;background:#fff;box-shadow:0 10px 24px rgba(30,55,90,.05)}
@@ -452,15 +456,21 @@ include($CFG->DOCUMENT_PATH . 'Common/Templates/head.php');
                     $knownSubFeatures = authKnownSubFeatures();
                     foreach ($listACL as $id => $rawLabel) {
                         $id = intval($id);
-                        if ($id <= 0) continue;
+                        if ($id < AclRoot) continue;
                         $featureLevel = authRuleFeatureLevel($editParsedRule, $id);
+                        $isRootFeature = $id === AclRoot;
                     ?>
-                        <tr class="auth-feature-row">
+                        <tr class="auth-feature-row<?php echo $isRootFeature ? ' auth-feature-row-root' : ''; ?>">
                             <td><?php echo htmlspecialchars(authFeatureLabel($id, $rawLabel)); ?></td>
                             <td class="Center"><input type="radio" name="perm[<?php echo $id; ?>]" value="0" <?php echo $featureLevel === 0 ? 'checked' : ''; ?>></td>
                             <td class="Center"><input type="radio" name="perm[<?php echo $id; ?>]" value="1" <?php echo $featureLevel === 1 ? 'checked' : ''; ?>></td>
                             <td class="Center"><input type="radio" name="perm[<?php echo $id; ?>]" value="2" <?php echo $featureLevel === 2 ? 'checked' : ''; ?>></td>
                         </tr>
+                        <?php if ($isRootFeature) { ?>
+                        <tr class="auth-feature-row-root">
+                            <td colspan="4"><small class="auth-muted"><?php echo htmlspecialchars(authText('HintAclRootScope')); ?></small></td>
+                        </tr>
+                        <?php } ?>
                         <?php foreach (($knownSubFeatures[$id] ?? array()) as $subCode => $subLabel) {
                             $subLevel = authRuleSubLevel($editParsedRule, $id, $subCode);
                         ?>

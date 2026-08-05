@@ -127,6 +127,8 @@ $lang = array(
 
     // ── index.php — human-readable top-level ACL feature names (was raw Ianseo
     // codes like "AclCompetition" before) ────────────────────────────────────
+    'Feature_AclRoot'           => 'Full administration (this pattern)',
+    'HintAclRootScope'          => 'Read-only has no effect here — only Read/write grants full administration (create, delete, lock/unlock, import, native ACL) for every competition matching the pattern above, not just this one feature.',
     'Feature_AclCompetition'    => 'Competition',
     'Feature_AclInternetPublish'=> 'Online publication',
     'Feature_AclParticipants'   => 'Participants',
@@ -173,5 +175,6 @@ $lang = array(
     'MenuLogout'        => 'Logout',
     'MenuLogin'         => 'Login',
     'MenuMyAccount'     => 'My account',
+    'MenuCreateCompetition' => 'Create a competition',
 
 );

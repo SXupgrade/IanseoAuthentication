@@ -124,6 +124,8 @@ $lang = array(
 
     // ── index.php — noms lisibles des fonctionnalités ACL (remplacent les codes
     // Ianseo bruts type "AclCompetition") ───────────────────────────────────
+    'Feature_AclRoot'           => 'Administration complète (ce motif)',
+    'HintAclRootScope'          => "Lecture seule n'a aucun effet ici — seul Lecture/écriture accorde l'administration complète (créer, supprimer, verrouiller/déverrouiller, importer, ACL native) pour toutes les compétitions correspondant au motif ci-dessus, pas seulement cette fonctionnalité.",
     'Feature_AclCompetition'    => 'Compétition',
     'Feature_AclInternetPublish'=> 'Publication en ligne',
     'Feature_AclParticipants'   => 'Participants',
@@ -170,5 +172,6 @@ $lang = array(
     'MenuLogout'        => 'Déconnexion',
     'MenuLogin'         => 'Connexion',
     'MenuMyAccount'     => 'Mon compte',
+    'MenuCreateCompetition' => 'Créer une compétition',
 
 );

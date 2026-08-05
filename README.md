@@ -167,16 +167,42 @@ The currently logged-in admin's own row never offers Disable/Delete (only Edit/R
 module has no separate account-recovery path, so locking yourself out from this screen would mean
 editing the database directly to get back in.
 
-**Access to competition creation/deletion**: not handled by this module directly (that's core
-Ianseo's `Update/index.php` and `Tournament/TourDelete.php`), but already effectively
-**admin-only** whenever `$CFG->USERAUTH` is enabled — both call Ianseo's `checkFullACL(AclRoot,
-...)`, and this module's `authCheckACL()` only satisfies an `AclRoot` (feature id `0`) request for
-`$_SESSION['AUTH_ROOT']` (i.e. root/admin accounts). The per-competition rights editor above
-deliberately excludes feature id `0` from the grantable list (`if ($id <= 0) continue;`), so a
-non-root user can never be granted tournament creation/deletion through this UI. `Update/index.php`
-additionally hard-redirects any non-root authenticated user to `noAccess.php` before even reaching
-that ACL check. No change was needed here — this was already the behavior, just not obvious
-without reading Ianseo core.
+### Delegating competition creation/deletion by naming pattern (`AclRoot`)
+
+Ianseo core gates competition creation (`Tournament/index.php` save path), deletion
+(`Tournament/TourDelete.php`), lock/unlock (`Tournament/BlockTour.php`), import
+(`Tournament/TournamentImport.php`) and its own native (IP-based) per-tournament ACL editor
+(`Tournament/AccessControlList/*`) behind `checkFullACL(AclRoot, ...)` / `possibleFeature(AclRoot,
+...)` — feature id `0`. These calls are **pattern-aware by design**: Ianseo core itself resolves
+them against the requester's `AclUserFeatures` rule for the specific competition code involved
+(e.g. a rule for pattern `13092*`), the exact same mechanism as every other feature in the rights
+editor above — this was always how Ianseo intended to support delegating a subset of competitions
+by naming convention, without making someone a true root/admin.
+
+The rights editor now includes `AclRoot` (labelled "Full administration (this pattern)") as a
+grantable row, highlighted and with an inline warning: it is **not** a narrow "create/delete"
+permission — granting it for a pattern hands over full administration (create, delete, lock/
+unlock, import, native ACL) for every competition matching that pattern, nothing narrower. Prior
+to this, three independent places in this module explicitly rejected feature id `0`
+(`authParseFeatureRules()`, `authBuildFeatureStringFromPost()`, and the rights editor's own
+render loop) — a deliberate defense-in-depth choice at the time, since granting `AclRoot` through
+this module hadn't been vetted for its actual (broader-than-"competition management") scope yet.
+
+**Not affected by a pattern-scoped `AclRoot` grant** — these hard-check
+`empty($_SESSION['AUTH_ROOT'])` directly, bypassing this module's pattern-aware hooks entirely,
+and stay strictly root-only regardless: `Update/index.php` (the "all competitions" hub),
+`Update/index-action.php` (its AJAX actions), `Update/ExportAllCompetitions.php` (bulk export).
+Changing that would mean patching Ianseo core itself, re-applied on every core update — out of
+scope for this module.
+
+Because Ianseo's own menu only offers "New competition" when it can already check a specific
+tournament code against the requester's rules (impossible before one exists — see
+`Common/Menu.php`'s `possibleFeature(AclRoot, AclReadWrite)` call with no code), a user delegated
+`AclRoot` on a pattern wouldn't otherwise see any link to create one. `menu.php` adds a "Create a
+competition" entry (`authUserHasAnyRootGrant()`) pointing straight at Ianseo's own
+`Tournament/index.php?New=` for exactly this case — a discoverability aid only, not a new access
+path: the same pattern check Ianseo core already does at save time applies regardless of how that
+page was reached.
 
 ## Rule format
 
