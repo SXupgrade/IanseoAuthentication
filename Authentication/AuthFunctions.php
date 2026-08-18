@@ -25,6 +25,110 @@ function authEnsureTables()
         `AclUFFeature` TEXT NOT NULL,
         PRIMARY KEY (`AclUFUser`, `AclUFPattern`)
     ) ENGINE=InnoDB", false, array(1050));
+
+    // Links a local AclUsers account to an external identity provider (Compet+ "Login with
+    // Compet+" federated auth, see CompetplusOAuth.php). Owned entirely by this module (unlike
+    // AclUsers/AclUserFeatures above, which are native Ianseo tables) -- never added as extra
+    // columns on AclUsers, to avoid touching a table core Ianseo also manages.
+    // PRIMARY KEY (Provider, AclUsUser): a local account has at most one linked identity per
+    // provider. UNIQUE (Provider, ExternalId): an external identity can be linked to at most one
+    // local account -- both directions enforced at the DB level, not just in application code.
+    safe_w_SQL("CREATE TABLE IF NOT EXISTS `AclUserExternalAuth` (
+        `Provider` VARCHAR(32) NOT NULL,
+        `AclUsUser` VARCHAR(16) NOT NULL,
+        `ExternalId` VARCHAR(64) NOT NULL,
+        `LinkedAt` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (`Provider`, `AclUsUser`),
+        UNIQUE KEY `UqAclUserExternalAuthExternalId` (`Provider`, `ExternalId`)
+    ) ENGINE=InnoDB", false, array(1050));
+}
+
+// ── i18n ───────────────────────────────────────────────────────────────────
+// Self-contained translation files under Languages/<code>.php -- this module's own folder, NOT
+// Ianseo core's Common/Languages/ tree (get_text()'s usual home). Keeps the module a single
+// drop-in copy with nothing to install into Ianseo core. Language DETECTION still reuses
+// Ianseo's own SelectLanguage() (cookie/query/browser, see Common/Globals.inc.php) when
+// available, so this module automatically follows whatever language a visitor already has for
+// the rest of Ianseo -- no separate first-time choice needed, though a small switcher is still
+// shown on this module's own pages (authLanguageSwitcherHtml()) since Ianseo's own page chrome
+// isn't present on a bare login screen.
+function authAvailableLanguages()
+{
+    static $codes = null;
+    if ($codes !== null) {
+        return $codes;
+    }
+    $codes = array();
+    foreach (glob(dirname(__FILE__) . '/Languages/*.php') as $file) {
+        $codes[] = basename($file, '.php');
+    }
+    sort($codes);
+    return $codes;
+}
+
+function authCurrentLanguage()
+{
+    $detected = 'en';
+    if (function_exists('SelectLanguage')) {
+        $detected = strtolower((string)SelectLanguage());
+    } elseif (!empty($_COOKIE['UseLanguage'])) {
+        $detected = strtolower((string)$_COOKIE['UseLanguage']);
+    }
+    return in_array($detected, authAvailableLanguages(), true) ? $detected : 'en';
+}
+
+function authLoadLanguageStrings($code)
+{
+    static $cache = array();
+    if (isset($cache[$code])) {
+        return $cache[$code];
+    }
+    $lang = array();
+    $file = dirname(__FILE__) . '/Languages/' . $code . '.php';
+    if (file_exists($file)) {
+        include $file; // defines $lang
+    }
+    $cache[$code] = $lang;
+    return $lang;
+}
+
+// 'en' is always merged in first as a fallback base: a language file that's missing a newer key
+// (translation not caught up yet) still renders readable English instead of a raw/empty string.
+// Simple {placeholder} substitution -- no plural/gender rules; the one genuinely count-dependent
+// string (index.php's "N write / M read") is composed from several authText() calls rather than
+// grammar logic living here, see authAccessLabel().
+function authText($key, $vars = null)
+{
+    $currentLang = authCurrentLanguage();
+    $strings = $currentLang !== 'en'
+        ? array_merge(authLoadLanguageStrings('en'), authLoadLanguageStrings($currentLang))
+        : authLoadLanguageStrings('en');
+
+    $text = isset($strings[$key]) ? $strings[$key] : $key;
+
+    if (is_array($vars)) {
+        foreach ($vars as $name => $value) {
+            $text = str_replace('{' . $name . '}', $value, $text);
+        }
+    }
+
+    return $text;
+}
+
+// Small language switcher reusing Ianseo's own ?SetLanguage= cookie mechanism
+// (Common/Globals.inc.php, top-level code -- runs on every page automatically) -- works on any
+// page of this module with no extra wiring, and preserves the rest of the current query string
+// (e.g. ?return=... on LogIn.php) since Ianseo's own handler takes care of that.
+function authLanguageSwitcherHtml()
+{
+    $current = authCurrentLanguage();
+    $links = array();
+    foreach (authAvailableLanguages() as $code) {
+        $label = htmlspecialchars(strtoupper($code));
+        $links[] = $code === $current ? '<strong>' . $label . '</strong>'
+            : '<a href="?SetLanguage=' . htmlspecialchars($code) . '">' . $label . '</a>';
+    }
+    return '<div class="cp-lang-switch">' . implode(' &middot; ', $links) . '</div>';
 }
 
 function authNormalizeUsername($username)
@@ -102,6 +206,24 @@ function authLoadUserRules($username)
     return $rules;
 }
 
+// True if $username has been granted AclRoot (full delegated administration) for at least one
+// competition pattern, regardless of which one -- used only to decide whether to surface a
+// "Create a competition" menu link (see menu.php), since Ianseo core's own menu can't do this by
+// itself: it only shows that link when a specific tournament code can already be checked against
+// the user's rules, which is never true before a tournament exists (see
+// Common/Menu.php:513-514's possibleFeature(AclRoot, AclReadWrite) call, evaluated with an empty
+// code). The actual save-time enforcement (Tournament/index.php) is unaffected either way -- this
+// is purely a discoverability aid, not a security boundary.
+function authUserHasAnyRootGrant($username)
+{
+    foreach (authLoadUserRules($username) as $rule) {
+        $parsed = authParseFeatureRules($rule['features']);
+        if (isset($parsed[AclRoot]) && authFeatureEffectiveLevel($parsed[AclRoot]) >= AclReadWrite) {
+            return true;
+        }
+    }
+    return false;
+}
 
 function authCountUsers()
 {
@@ -149,7 +271,7 @@ function authCreateInitialAdmin($username, $name, $password, &$error = '')
     authEnsureTables();
 
     if (!authIsInitialSetupRequired()) {
-        $error = 'Initial setup is no longer available.';
+        $error = authText('ErrSetupNotAvailable');
         return false;
     }
 
@@ -158,22 +280,22 @@ function authCreateInitialAdmin($username, $name, $password, &$error = '')
     $password = (string)$password;
 
     if ($username === '') {
-        $error = 'User is required.';
+        $error = authText('ErrUserRequired');
         return false;
     }
     if (strlen($username) > 16) {
-        $error = 'User must be 16 characters or less.';
+        $error = authText('ErrUserTooLong');
         return false;
     }
     if ($name === '') {
         $name = $username;
     }
     if ($password === '') {
-        $error = 'Password is required.';
+        $error = authText('ErrPasswordRequired');
         return false;
     }
     if (strlen($password) < 8) {
-        $error = 'Password must contain at least 8 characters.';
+        $error = authText('ErrPasswordTooShort');
         return false;
     }
 
@@ -187,7 +309,7 @@ function authCreateInitialAdmin($username, $name, $password, &$error = '')
 
     $user = authLoadUser($username);
     if (!$user) {
-        $error = 'Initial admin was created but could not be loaded.';
+        $error = authText('ErrInitialAdminLoadFailed');
         return false;
     }
 
@@ -225,7 +347,12 @@ function authParseFeatureRules($featureString)
         $feature = intval($parts[0]);
         $subFeature = trim((string)$parts[1]);
         $level = max(AclNoAccess, min(AclReadWrite, intval($parts[2])));
-        if ($feature <= 0) {
+        // AclRoot (0) IS a valid, grantable feature here: pattern-scoped delegation (e.g. a rule
+        // for pattern "13092*") intentionally supports granting it -- Ianseo core's own
+        // checkFullACL(AclRoot, ...)/possibleFeature(AclRoot, ...) calls are pattern-aware by
+        // design (see Tournament/index.php's tournament-creation save path). Only truly invalid
+        // (negative) feature ids are rejected.
+        if ($feature < AclRoot) {
             continue;
         }
         if (!isset($acl[$feature])) {
@@ -314,11 +441,11 @@ function authLogin($username, $password, &$error = '')
 {
     $user = authLoadUser($username);
     if (!$user || !intval($user->AclUsEnabled)) {
-        $error = 'Invalid user or disabled account.';
+        $error = authText('ErrInvalidOrDisabledAccount');
         return false;
     }
     if (!authVerifyPassword($password, $user->AclUsPwd)) {
-        $error = 'Invalid username or password.';
+        $error = authText('ErrInvalidCredentials');
         return false;
     }
     // Keep stored hash as-is: this module intentionally avoids automatic hash migration
@@ -387,11 +514,16 @@ function authIsPublicRequest()
     $pathLower = strtolower($path);
 
     // Authentication module entry points must remain reachable without a session.
+    // CompetplusStart.php/CompetplusCallback.php: entry/exit points of the "Se connecter avec
+    // Compet+" federated login (see CompetplusOAuth.php) -- reached before any local session
+    // exists, exactly like LogIn.php/LogOut.php below.
     $publicFragments = array(
         '/modules/authentication/login.php',
         '/modules/authentication/logout.php',
         '/modules/authentication/authfunctions.php',
         '/modules/authentication/blockfunction.php',
+        '/modules/authentication/competplusstart.php',
+        '/modules/authentication/competpluscallback.php',
     );
     foreach ($publicFragments as $fragment) {
         if (strpos($pathLower, $fragment) !== false) {
@@ -493,6 +625,152 @@ function authRequireLoginForRequest($force = false)
     exit();
 }
 
+
+// ── "Se connecter avec Compet+" (auth.competplus.fr) ──────────────────────────
+// Config lives in Ianseo's own config.php (site-owner-controlled, like $CFG->USERAUTH), NOT in
+// this module -- see README.md "Compet+ federated login" for the block to add. Never assume a
+// default client_id/secret: the feature is simply hidden (button not shown, entry points refuse)
+// until an admin configures it.
+function authCompetplusConfig()
+{
+    global $CFG;
+    if (empty($CFG->COMPETPLUS_AUTH) || !is_array($CFG->COMPETPLUS_AUTH)) {
+        return null;
+    }
+    $cfg = $CFG->COMPETPLUS_AUTH;
+    $clientId = trim((string)($cfg['client_id'] ?? ''));
+    $redirectUri = trim((string)($cfg['redirect_uri'] ?? ''));
+    if ($clientId === '' || $redirectUri === '') {
+        return null;
+    }
+    return array(
+        'client_id' => $clientId,
+        'client_secret' => (string)($cfg['client_secret'] ?? ''),
+        'auth_base_url' => rtrim((string)($cfg['auth_base_url'] ?? 'https://auth.competplus.fr'), '/'),
+        // Used only for the best-effort FFTA-licence pairing fallback (see
+        // authCompetplusFetchArcherProfile() / authFindUserByLicenceAsUsername()) -- the archer
+        // profile (and its FFTA licence number) is owned by cloud.competplus.fr, not auth, so a
+        // second Bearer-authenticated call is needed with the SAME access_token issued by the
+        // token exchange (opaque platform session tokens are valid across all Compet+ apps, not
+        // just auth -- see competplus_current_user() on the platform side).
+        'cloud_base_url' => rtrim((string)($cfg['cloud_base_url'] ?? 'https://cloud.competplus.fr'), '/'),
+        'redirect_uri' => $redirectUri,
+    );
+}
+
+function authCompetplusEnabled()
+{
+    return authCompetplusConfig() !== null;
+}
+
+// Local account currently linked to a given Compet+ identity ("sub"), or null.
+function authFindUserByExternalId($provider, $externalId)
+{
+    authEnsureTables();
+    $sql = "SELECT `AclUsUser` FROM `AclUserExternalAuth` WHERE `Provider`=" . StrSafe_DB($provider)
+        . " AND `ExternalId`=" . StrSafe_DB($externalId) . " LIMIT 1";
+    $q = safe_r_SQL($sql);
+    if ($r = safe_fetch($q)) {
+        return authLoadUser($r->AclUsUser);
+    }
+    return null;
+}
+
+// AclUsers has no e-mail column: this only matches installs where the login username itself
+// IS the person's e-mail address (common convention, and AclUsUser being VARCHAR(16) means it
+// only ever matches short addresses -- longer ones simply never match, which is fine, they fall
+// back to the manual link flow on Account.php). Exact, case-insensitive match only -- never a
+// partial/LIKE match, to avoid matching an unrelated short username that happens to be a prefix
+// of an email address.
+function authFindUserByEmailAsUsername($email)
+{
+    $email = strtolower(trim((string)$email));
+    if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        return null;
+    }
+    authEnsureTables();
+    $sql = "SELECT * FROM `AclUsers` WHERE LOWER(`AclUsUser`)=" . StrSafe_DB($email) . " LIMIT 1";
+    $q = safe_r_SQL($sql);
+    if ($r = safe_fetch($q)) {
+        return $r;
+    }
+    return null;
+}
+
+// Same idea as authFindUserByEmailAsUsername(), but for installs that use the archer's FFTA
+// licence number as their login username instead of (or in addition to) an e-mail -- arguably a
+// BETTER fit than e-mail for this module specifically, since an FFTA licence (7 digits + 1
+// letter, 8 chars) comfortably fits AclUsUser's VARCHAR(16), unlike most e-mail addresses.
+// $licence comes from cloud.competplus.fr's archer profile (see
+// authCompetplusFetchArcherProfile()), NOT from auth's userinfo -- auth has no notion of FFTA
+// licence, it belongs to the archer profile owned by cloud (see DATA_OWNERSHIP.md on the
+// competplus-platform repo). Exact, case-insensitive match only.
+function authFindUserByLicenceAsUsername($licence)
+{
+    $licence = strtoupper(trim((string)$licence));
+    if ($licence === '' || strlen($licence) > 16) {
+        return null;
+    }
+    authEnsureTables();
+    $sql = "SELECT * FROM `AclUsers` WHERE UPPER(`AclUsUser`)=" . StrSafe_DB($licence) . " LIMIT 1";
+    $q = safe_r_SQL($sql);
+    if ($r = safe_fetch($q)) {
+        return $r;
+    }
+    return null;
+}
+
+// Linked identity for a local account (for display on Account.php), or null.
+function authGetLinkedExternalIdentity($username, $provider)
+{
+    authEnsureTables();
+    $username = authNormalizeUsername($username);
+    if ($username === '') {
+        return null;
+    }
+    $sql = "SELECT * FROM `AclUserExternalAuth` WHERE `Provider`=" . StrSafe_DB($provider)
+        . " AND `AclUsUser`=" . StrSafe_DB($username) . " LIMIT 1";
+    $q = safe_r_SQL($sql);
+    if ($r = safe_fetch($q)) {
+        return $r;
+    }
+    return null;
+}
+
+// Links $username (an EXISTING, already-authenticated local account -- this function never
+// creates one) to an external identity. Refuses if that identity is already linked to a
+// DIFFERENT local account, rather than silently stealing the link.
+function authLinkExternalIdentity($username, $provider, $externalId, &$error = '')
+{
+    authEnsureTables();
+    $username = authNormalizeUsername($username);
+    if ($username === '' || !authLoadUser($username)) {
+        $error = authText('ErrUnknownLocalAccount');
+        return false;
+    }
+
+    $existingOwner = authFindUserByExternalId($provider, $externalId);
+    if ($existingOwner && (string)$existingOwner->AclUsUser !== $username) {
+        $error = authText('ErrIdentityAlreadyLinked');
+        return false;
+    }
+
+    safe_w_SQL("INSERT INTO `AclUserExternalAuth` (`Provider`, `AclUsUser`, `ExternalId`) VALUES ("
+        . StrSafe_DB($provider) . ", " . StrSafe_DB($username) . ", " . StrSafe_DB($externalId)
+        . ") ON DUPLICATE KEY UPDATE `ExternalId`=" . StrSafe_DB($externalId) . ", `LinkedAt`=NOW()");
+    return true;
+}
+
+function authUnlinkExternalIdentity($username, $provider)
+{
+    authEnsureTables();
+    $username = authNormalizeUsername($username);
+    if ($username === '') {
+        return;
+    }
+    safe_w_SQL("DELETE FROM `AclUserExternalAuth` WHERE `Provider`=" . StrSafe_DB($provider)
+        . " AND `AclUsUser`=" . StrSafe_DB($username));
+}
 
 function authBootstrapRequest()
 {
