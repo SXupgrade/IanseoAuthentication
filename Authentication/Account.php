@@ -18,8 +18,12 @@ $message = '';
 $error = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'unlink') {
-    authUnlinkExternalIdentity($username, 'competplus');
-    $message = authText('MsgUnlinked');
+    if (!authCsrfCheck()) {
+        $error = authText('ErrCsrf');
+    } else {
+        authUnlinkExternalIdentity($username, 'competplus');
+        $message = authText('MsgUnlinked');
+    }
 }
 
 if (!empty($_GET['competplus_message'])) {
@@ -52,6 +56,7 @@ include($CFG->DOCUMENT_PATH . 'Common/Templates/head.php');
     <?php } elseif ($linked) { ?>
         <div class="cp-account-status linked"><?php echo htmlspecialchars(authText('LinkedSince', array('date' => $linked->LinkedAt))); ?></div>
         <form method="post" onsubmit="return confirm('<?php echo htmlspecialchars(addslashes(authText('ConfirmUnlink')), ENT_QUOTES); ?>')">
+            <?php echo authCsrfField(); ?>
             <input type="hidden" name="action" value="unlink">
             <input type="submit" value="<?php echo htmlspecialchars(authText('BtnUnlink')); ?>">
         </form>

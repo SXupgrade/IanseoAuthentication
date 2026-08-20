@@ -24,7 +24,9 @@ function authLoginReturnUrl()
 
 $returnUrl = authLoginReturnUrl();
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if ($isInitialSetup) {
+    if (!authCsrfCheck()) {
+        $error = authText('ErrCsrf');
+    } elseif ($isInitialSetup) {
         $password = (string)($_POST['password'] ?? '');
         $confirmPassword = (string)($_POST['confirm_password'] ?? '');
         if ($password !== $confirmPassword) {
@@ -65,6 +67,7 @@ include($CFG->DOCUMENT_PATH . 'Common/Templates/head.php');
             <?php echo htmlspecialchars(authText('SetupWarning')); ?>
         </div>
         <form method="post">
+            <?php echo authCsrfField(); ?>
             <input type="hidden" name="return" value="<?php echo htmlspecialchars($returnUrl); ?>">
             <table class="Tabella">
                 <tr><th colspan="2"><?php echo htmlspecialchars(authText('CreateFirstAdmin')); ?></th></tr>
@@ -78,6 +81,7 @@ include($CFG->DOCUMENT_PATH . 'Common/Templates/head.php');
         </form>
     <?php } else { ?>
         <form method="post">
+            <?php echo authCsrfField(); ?>
             <input type="hidden" name="return" value="<?php echo htmlspecialchars($returnUrl); ?>">
             <table class="Tabella">
                 <tr><th colspan="2"><?php echo htmlspecialchars(authText('SectionLogin')); ?></th></tr>

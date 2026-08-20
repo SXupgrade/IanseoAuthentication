@@ -16,6 +16,7 @@ $lang = array(
     'ErrInvalidCredentials'       => 'Identifiant ou mot de passe incorrect.',
     'ErrUnknownLocalAccount'      => 'Compte local inconnu.',
     'ErrIdentityAlreadyLinked'    => 'Ce compte Compet+ est déjà lié à un autre utilisateur Ianseo.',
+    'ErrCsrf'                     => 'Votre session a expiré ou ce formulaire a été renvoyé deux fois. Merci de réessayer.',
 
     // ── Flux de connexion Compet+ (CompetplusStart.php / CompetplusCallback.php) ──
     'MsgCompetplusUnavailable' => 'La connexion Compet+ est momentanément indisponible.',

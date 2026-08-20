@@ -166,7 +166,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Never let the currently logged-in admin disable or delete their OWN account from this
     // screen -- the module has no separate recovery path if that leaves zero enabled root users.
     $isSelfAction = $user !== '' && $user === ($_SESSION['AUTH_User'] ?? '');
-    if ($user === '') {
+    if (!authCsrfCheck()) {
+        $error = authText('ErrCsrf');
+    } elseif ($user === '') {
         $error = authText('ErrUserRequired');
     } elseif ($action === 'save_user') {
         $name = trim((string)($_POST['name'] ?? ''));
@@ -360,11 +362,13 @@ include($CFG->DOCUMENT_PATH . 'Common/Templates/head.php');
                                 <a href="?user=<?php echo urlencode($u->AclUsUser); ?>&open=rights"><?php echo htmlspecialchars(authText('ActionRights')); ?></a>
                                 <?php if (!$isSelfRow) { ?>
                                 <form method="post">
+                                    <?php echo authCsrfField(); ?>
                                     <input type="hidden" name="action" value="toggle_enabled">
                                     <input type="hidden" name="user" value="<?php echo htmlspecialchars($u->AclUsUser); ?>">
                                     <button type="submit"><?php echo htmlspecialchars($enabled ? authText('ActionDisable') : authText('ActionEnable')); ?></button>
                                 </form>
                                 <form method="post" onsubmit="return confirm('<?php echo authJsConfirmAttr('ConfirmDeleteUser'); ?>')">
+                                    <?php echo authCsrfField(); ?>
                                     <input type="hidden" name="action" value="delete_user">
                                     <input type="hidden" name="user" value="<?php echo htmlspecialchars($u->AclUsUser); ?>">
                                     <button type="submit" class="danger"><?php echo htmlspecialchars(authText('BtnDeleteUser')); ?></button>
@@ -387,6 +391,7 @@ include($CFG->DOCUMENT_PATH . 'Common/Templates/head.php');
                 <button type="button" class="cp-modal-close" onclick="this.closest('.cp-modal-overlay').style.display='none'" aria-label="<?php echo htmlspecialchars(authText('Close')); ?>">×</button>
             </div>
             <form method="post">
+                <?php echo authCsrfField(); ?>
                 <input type="hidden" name="action" value="save_user">
                 <table class="Tabella">
                     <tr><td><?php echo htmlspecialchars(authText('FieldUser')); ?></td><td><input name="user" maxlength="16" required <?php echo $selectedUserRow ? 'readonly' : ''; ?> value="<?php echo htmlspecialchars($selectedUserRow->AclUsUser ?? ''); ?>"> <small><?php echo htmlspecialchars(authText('HintUsername')); ?></small></td></tr>
@@ -418,6 +423,7 @@ include($CFG->DOCUMENT_PATH . 'Common/Templates/head.php');
                             <a class="btn-xs-link" href="?user=<?php echo urlencode($selectedUserRow->AclUsUser); ?>&open=rights&pattern=<?php echo urlencode($rule['pattern']); ?>#acc-rule-form"><?php echo htmlspecialchars(authText('ActionEdit')); ?></a>
                             &nbsp;
                             <form method="post" style="display:inline" onsubmit="return confirm('<?php echo authJsConfirmAttr('ConfirmDeleteRule'); ?>')">
+                                <?php echo authCsrfField(); ?>
                                 <input type="hidden" name="action" value="delete_rule">
                                 <input type="hidden" name="user" value="<?php echo htmlspecialchars($selectedUserRow->AclUsUser); ?>">
                                 <input type="hidden" name="pattern" value="<?php echo htmlspecialchars($rule['pattern']); ?>">
@@ -433,6 +439,7 @@ include($CFG->DOCUMENT_PATH . 'Common/Templates/head.php');
 
             <h3 id="acc-rule-form"><?php echo htmlspecialchars(authText('SectionAddUpdateAccess')); ?></h3>
             <form method="post">
+                <?php echo authCsrfField(); ?>
                 <input type="hidden" name="action" value="save_rule">
                 <input type="hidden" name="user" value="<?php echo htmlspecialchars($selectedUserRow->AclUsUser); ?>">
                 <table class="Tabella">
