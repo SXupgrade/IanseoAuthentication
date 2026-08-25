@@ -46,7 +46,7 @@ $lang = array(
     'BtnLogin'                => 'Se connecter',
     'Or'                      => 'ou',
     'BtnLoginWithCompetplus'  => 'Se connecter avec Compet+',
-    'NoteMadeAvailable'       => 'Ce module d\'authentification est mis à disposition par {a}.',
+    'NoteMadeAvailable'       => 'Ce module d\'authentification est développé par {a}.',
     'FooterOpenSource'        => 'Module open-source avec attribution. Voir {license} et {notice}.',
 
     // ── Account.php ─────────────────────────────────────────────────────────
@@ -64,7 +64,7 @@ $lang = array(
     // ── index.php (admin) ───────────────────────────────────────────────────
     'PageTitleAdmin'        => 'Administration de l\'authentification',
     'AdminSubtitle'          => "Accès utilisateurs, visibilité des compétitions et sous-fonctionnalités ACL détaillées.",
-    'ModuleCredit'           => 'Module mis à disposition par',
+    'ModuleCredit'           => 'Développé par',
     'MsgUserSaved'           => 'Utilisateur enregistré.',
     'MsgUserDeleted'         => 'Utilisateur supprimé.',
     'MsgRuleSaved'           => "Règle d'accès enregistrée.",
@@ -91,7 +91,7 @@ $lang = array(
     'UpdateCheckUnavailable' => 'Impossible de vérifier les mises à jour (pas d\'accès réseau ?)',
     'BtnCheckUpdate'         => 'Vérifier les mises à jour',
     'BtnApplyUpdate'         => 'Mettre à jour maintenant',
-    'ConfirmApplyUpdate'     => 'Mettre à jour ce module vers la version {version} ? Une sauvegarde des fichiers actuels est conservée automatiquement, mais faites-le si possible en dehors des heures de forte affluence.',
+    'ConfirmApplyUpdate'     => 'Mettre à jour ce module vers la version {version} ? Une sauvegarde des fichiers actuels est conservée automatiquement. Effectuez cette opération en dehors des heures de forte affluence si possible.',
     'MsgUpdateCheckDone'     => 'Vérification des mises à jour effectuée.',
     'MsgUpdateApplied'       => 'Module mis à jour.',
     'ErrUpdateCheckFailed'   => 'Impossible de vérifier les mises à jour : {reason}',
