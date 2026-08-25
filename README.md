@@ -1,23 +1,79 @@
 # Compet+ Lightweight Authentication module for Ianseo
 
-Original drop-in module for Ianseo's public `Modules/Authentication` hook points.
+Drop-in module for Ianseo's public `Modules/Authentication` hook points,
+deployed through `Modules/Custom/` — the one directory Ianseo's own update
+process never touches — instead of directly into `Modules/Authentication/`,
+which an Ianseo update can (and does) wipe out entirely.
+
+## Why `Modules/Custom/` and not `Modules/Authentication/` directly
+
+Ianseo hard-codes a few paths under `Modules/Authentication/` in its own
+core (`Common/BlockDefines.php`'s `require_once('Modules/Authentication/
+BlockFunction.php')`, `config.php`'s `AuthFunctions.php` include) — it has
+no notion of `Modules/Custom/`-relative auth hooks. So that exact path has
+to exist on disk, but the directory itself isn't part of Ianseo's own
+versioned/preserved content (see the Ianseo checkout's `.gitignore`:
+`/Modules/Authentication`), so a code update that replaces Ianseo's files
+wipes it.
+
+The real module code lives in `Modules/Custom/Authentication/` instead —
+preserved across updates by Ianseo's own design (see `Modules/Custom/
+README.TXT` in the Ianseo checkout: "left untouched by the update
+process"). `Modules/Authentication/` becomes a disposable set of tiny
+forwarder files that just `require` the real code from `Modules/Custom/
+Authentication/`, regenerated automatically by `Bootstrap.php` whenever
+it's missing — no manual step needed after an update.
 
 ## Install
 
-1. Copy `Modules/Authentication` into the Ianseo root.
-2. In `config.php`, set:
-
-```php
-$CFG->USERAUTH=true;
-```
-
-3. Open Ianseo locally from the server machine and go to:
+1. Copy `Custom/Authentication` into the Ianseo root's `Modules/Custom/`
+   (so the real files live at `Modules/Custom/Authentication/`).
+2. Open Ianseo locally from the server machine and go to:
 
 ```text
 Modules/Authentication/index.php
 ```
 
+   (This works even with `USERAUTH` still off — `menu.php` self-heals
+   `Modules/Authentication/` unconditionally, so the first-admin setup flow
+   and this admin screen are both reachable before authentication is ever
+   turned on.)
+3. Create the first administrator, then click **Enable authentication** at
+   the top of the admin screen.
+
+That last click is the only thing that actually turns the module on —
+there is no `config.php` line to edit by hand. It flips `$CFG->USERAUTH`
+in Ianseo's root `config.php` itself (`ConfigWriter.php`), and — the first
+time it's switched on — also installs a small safety-net block right there
+in `config.php`: it makes sure `Modules/Authentication/BlockFunction.php`
+exists *before* `Common/BlockDefines.php`'s hard `require_once` on it
+runs, on every request. Without it, an Ianseo update that wipes
+`Modules/Authentication/` while `USERAUTH` stays on would fatal-error
+every request before `menu.php` (the module's other, normal self-heal
+path, described below) is ever reached. `Ianseo`'s own repo is never
+touched for this — the module owns that block, in the live `config.php`,
+not in source control.
+
+That write is deliberately conservative: it requires an exact, single
+match on the `$CFG->USERAUTH` line before touching anything, takes a
+timestamped backup of `config.php` next to it before every write, and
+writes through a temp file + atomic rename rather than editing in place —
+see `ConfigWriter.php` for the details. If the web server can't write to
+`config.php` (common on some hosts), the toggle reports why and does
+nothing further; in that case set `$CFG->USERAUTH=true;` by hand instead
+and use the toggle later once permissions allow it (the safety-net block
+only ever gets installed through a successful toggle, so re-running it
+once permissions are fixed is what actually adds it).
+
+Nothing under `Modules/Authentication/` should ever be hand-edited — it's
+regenerated on demand and any manual changes are silently overwritten the
+next time `Bootstrap.php` runs. Edit the files in `Modules/Custom/
+Authentication/` instead.
+
 ## Files
+
+All in `Custom/Authentication/` (deployed to Ianseo's `Modules/Custom/
+Authentication/`):
 
 - `AuthFunctions.php`: session/login helpers, user table bootstrap, password hashing.
 - `BlockFunction.php`: Ianseo ACL hook implementation.
@@ -29,8 +85,78 @@ Modules/Authentication/index.php
 - `CompetplusOAuth.php`: OAuth2/OIDC client (Authorization Code + PKCE) talking to
   `auth.competplus.fr`.
 - `CompetplusStart.php` / `CompetplusCallback.php`: entry/exit points of that flow.
-- `menu.php`: adds Authentication/Account/Logout menu entries when possible.
+- `menu.php`: adds Authentication/Account/Logout menu entries when possible, and self-heals
+  `Modules/Authentication/` on every menu build (Ianseo auto-includes any `Modules/Custom/*/
+  menu.php`, which is what makes this the natural self-heal hook — see `Bootstrap.php`).
+- `Bootstrap.php`: regenerates the forwarder files Ianseo expects at `Modules/Authentication/`.
+  Bump `$shimVersion` in here if you ever change what those forwarders contain, or add/remove a
+  module file, so existing installs pick up the change on their next request instead of keeping a
+  stale shim forever. Never trusts the version marker (`.shim-version`) on its own: observed on a
+  real install after running Ianseo's own "Update Ianseo" — its self-updater deletes files under
+  `Modules/Authentication/` one by one from a list it never re-checks against the filesystem
+  afterward, and left `.shim-version` behind while removing the actual forwarders, so the marker
+  alone said "up to date" while the module was actually broken. `Bootstrap.php` now also checks
+  that every expected file still physically exists before trusting the marker — a stale-but-present
+  marker with even one file missing triggers a full regeneration, same as if the marker were gone.
+- `ConfigWriter.php`: toggles `$CFG->USERAUTH` in Ianseo's root `config.php` from the admin
+  screen's "Enable/Disable authentication" button, and installs the safety-net block described
+  under "Install" above the first time it's switched on.
+- `Updater.php`: checks GitHub for a newer version and applies it — see "Versioning and
+  self-update" below.
+- `VERSION`: the version currently installed (plain semver text, e.g. `1.1.0`) — compared against
+  GitHub tags by `Updater.php`. Gets overwritten by every update, same as everything else in this
+  folder.
 - `Languages/<code>.php`: this module's own translation strings — see "Language" below.
+
+## Versioning and self-update
+
+Releases are plain git tags on this repo (`vX.Y.Z`, e.g. `v1.1.0`) — no separate "publish a
+release" step needed, `git tag vX.Y.Z && git push origin vX.Y.Z` is the whole release process.
+`VERSION` inside `Custom/Authentication/` tracks which one is currently installed.
+
+The admin screen (`index.php`) checks the highest `vX.Y.Z` tag on
+`github.com/SXupgrade/IanseoAuthentication` against the installed `VERSION` — cached for 6 hours
+(`.update-check-cache.json`, next to `VERSION`, never committed) so a normal page load essentially
+never actually calls GitHub; "Check for updates" forces a fresh check on demand. This runs
+automatically on every visit to the admin screen (read-only, no changes without a click), but
+**only an account with `$canAdmin` (a `AUTH_ROOT` session, or physically on the server machine
+during initial setup — the same gate every other sensitive action on this screen already uses) can
+click "Update now".**
+
+Clicking it:
+
+1. Downloads that tag's source as a zip directly from GitHub (`zipball_url` from the same tags
+   API call, no separate lookup).
+2. Extracts it to a temp directory and builds the new `Modules/Custom/Authentication/` fully in a
+   fresh staging directory (`Modules/Custom/.authentication-staging/<id>/`) — the live install
+   isn't touched at all while this runs, so a failure here (disk full, permissions, a bad
+   download) leaves it exactly as it was.
+3. Only once that staging copy fully succeeds: two fast `rename()` calls swap the live directory
+   out to a timestamped backup (`Modules/Custom/.authentication-backups/<timestamp>/`, kept
+   indefinitely — delete old ones by hand whenever) and the staged one in. If the second rename
+   fails, the first is rolled back automatically — the live install is never left half-updated.
+
+   Both of those live under a dot-prefixed directory on purpose (see `Updater.php`): Ianseo's own
+   menu builder globs `Modules/Custom/*/menu.php`, one path segment, no further filtering — a
+   plain sibling like `Authentication-backup-<timestamp>/` matches that glob exactly as well as
+   `Authentication/` does, and since it's a full copy it has its own `menu.php` too, so Ianseo
+   would load *both* and immediately fatal-error the moment they both declare the same function.
+   A dot-prefixed containing directory is never matched by a bare `*` glob segment.
+
+The repo to check (`SXupgrade/IanseoAuthentication`) is a hardcoded constant in `Updater.php`, not
+read from `$CFG` or any request input, so there's no way to point this at anything other than the
+real module repo. Same trust model as Ianseo's own self-updater
+(`Update/UpdateIanseo.php`, downloading from `ianseo.net`): HTTPS to a fixed, known-good host, no
+extra signature layer on top.
+
+Needs the PHP `zip` extension (`ZipArchive`) — the update button reports clearly if it's missing
+instead of silently doing nothing; install the new `Custom/Authentication/` by hand in that case,
+same as step 1 of "Install" above.
+
+**An install running a version from *before* this feature existed can't discover or apply updates
+on its own** — it has no `VERSION` file or `Updater.php` yet, so there's nothing to click. That one
+jump has to be manual (replace `Modules/Custom/Authentication/` with a fresh checkout, same as a
+first install); every version from here on can update itself from then on.
 
 ## Language
 
@@ -119,11 +245,11 @@ fallback.
    on `competplus-platform`) with `redirect_uri` set to
    `https://your-ianseo-domain/Modules/Authentication/CompetplusCallback.php` (exact match
    required, no dynamic query string).
-2. In Ianseo's `config.php` (NOT part of this module — a per-deployment setting, exactly like
-   `$CFG->USERAUTH` above), add:
+2. Enable authentication from the admin screen (see "Install" above) if you haven't already, then
+   add the OAuth credentials to Ianseo's `config.php` by hand — these are Compet+ client
+   credentials, not something this module's own toggle manages:
 
 ```php
-$CFG->USERAUTH = true;
 $CFG->COMPETPLUS_AUTH = array(
     'client_id' => 'your-client-id',
     'client_secret' => 'the-secret-shown-once-at-creation',

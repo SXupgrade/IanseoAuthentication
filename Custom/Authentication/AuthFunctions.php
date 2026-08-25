@@ -137,11 +137,18 @@ function authNormalizeUsername($username)
     return preg_replace('/[^a-zA-Z0-9._-]/', '', $username);
 }
 
+// PASSWORD_BCRYPT explicitly, not PASSWORD_DEFAULT: bcrypt always produces a fixed 60-char
+// '$2y$10$...' hash, which fits AclUsers.AclUsPwd VARCHAR(64) -- the column size was never
+// actually the constraint the previous SHA-256 choice assumed it was. PASSWORD_DEFAULT is
+// pinned to bcrypt today but PHP explicitly reserves the right to change it (e.g. to Argon2id,
+// whose encoded hashes routinely exceed 90 chars) in a future version -- picking the algorithm
+// explicitly means a PHP upgrade can't silently start producing hashes too long for this column.
+define('AUTH_PASSWORD_ALGO', PASSWORD_BCRYPT);
+
 function authHashPassword($password)
 {
-    // Keep strict compatibility with Ianseo core schema where AclUsers.AclUsPwd is VARCHAR(64).
-    // Do not use password_hash() here: modern hashes may exceed 64 chars depending on PHP defaults.
-    return hash('sha256', (string)$password);
+    // Salted per-call and cost-tunable, unlike the bare unsalted SHA-256 this replaces.
+    return password_hash((string)$password, AUTH_PASSWORD_ALGO);
 }
 
 function authVerifyPassword($password, $storedHash)
@@ -151,14 +158,16 @@ function authVerifyPassword($password, $storedHash)
         return false;
     }
 
-    // Primary storage format for this compatibility module: SHA-256, 64 chars.
-    if (hash_equals($storedHash, hash('sha256', (string)$password))) {
-        return true;
+    // Current storage format: password_hash()/bcrypt, always starting with '$'.
+    if (substr($storedHash, 0, 1) === '$') {
+        return password_verify((string)$password, $storedHash);
     }
 
-    // Tolerate already-created password_hash() values if someone used a previous module version
-    // with an expanded custom schema. We verify them but never rewrite the DB to this format.
-    if (substr($storedHash, 0, 1) === '$' && password_verify((string)$password, $storedHash)) {
+    // Legacy format from earlier versions of this module: unsalted SHA-256, 64 hex chars.
+    // Verified for backward compatibility with existing installs -- authNeedsRehash() below
+    // flags these so authLogin() can transparently upgrade them to bcrypt on next successful
+    // login, never by a bulk migration that would need the plaintext passwords up front.
+    if (strlen($storedHash) === 64 && hash_equals($storedHash, hash('sha256', (string)$password))) {
         return true;
     }
 
@@ -167,9 +176,14 @@ function authVerifyPassword($password, $storedHash)
 
 function authNeedsRehash($storedHash)
 {
-    // DB compatibility rule: never auto-migrate passwords to password_hash() because
-    // the native Ianseo AclUsers.AclUsPwd column is VARCHAR(64).
-    return false;
+    $storedHash = (string)$storedHash;
+    // Legacy unsalted SHA-256 hash: always needs upgrading to bcrypt.
+    if (substr($storedHash, 0, 1) !== '$') {
+        return true;
+    }
+    // Already bcrypt, but not necessarily at bcrypt's current default cost (e.g. after a PHP
+    // upgrade raises it) -- let PHP itself decide.
+    return password_needs_rehash($storedHash, AUTH_PASSWORD_ALGO);
 }
 
 function authLoadUser($username)
@@ -448,10 +462,43 @@ function authLogin($username, $password, &$error = '')
         $error = authText('ErrInvalidCredentials');
         return false;
     }
-    // Keep stored hash as-is: this module intentionally avoids automatic hash migration
-    // to preserve compatibility with Ianseo's native AclUsers.AclUsPwd VARCHAR(64).
+    // Transparent upgrade path: a legacy unsalted-SHA-256 hash (or a bcrypt hash at an
+    // outdated cost) is rewritten to the current algorithm now that we have the plaintext in
+    // hand -- never in a bulk migration, which would need plaintext passwords up front and
+    // therefore can't exist. Best-effort: a write failure here must not block the login itself.
+    if (authNeedsRehash($user->AclUsPwd)) {
+        safe_w_SQL("UPDATE `AclUsers` SET `AclUsPwd`=" . StrSafe_DB(authHashPassword($password)) . " WHERE `AclUsUser`=" . StrSafe_DB($user->AclUsUser));
+    }
     authCreateSession($user, $password);
     return true;
+}
+
+// ── CSRF ─────────────────────────────────────────────────────────────────
+// One token per PHP session (not per-form/per-request): simpler, and this module's pages are
+// always plain full-page POSTs with no concurrent-tab JSON traffic that a rotating token would
+// otherwise break. Session-bound, not cookie-bound -- can't be set by an attacker the way a
+// double-submit cookie could.
+function authCsrfToken()
+{
+    if (empty($_SESSION['AUTH_CSRF']) || !is_string($_SESSION['AUTH_CSRF'])) {
+        $_SESSION['AUTH_CSRF'] = bin2hex(random_bytes(32));
+    }
+    return $_SESSION['AUTH_CSRF'];
+}
+
+// Hidden field to drop inside every <form method="post"> this module renders.
+function authCsrfField()
+{
+    return '<input type="hidden" name="auth_csrf" value="' . htmlspecialchars(authCsrfToken(), ENT_QUOTES, 'UTF-8') . '">';
+}
+
+// Must be the first thing checked in every POST handler, before acting on any other $_POST
+// field. hash_equals() avoids leaking the token's value through a timing side channel.
+function authCsrfCheck()
+{
+    return isset($_SESSION['AUTH_CSRF'], $_POST['auth_csrf'])
+        && is_string($_POST['auth_csrf'])
+        && hash_equals((string)$_SESSION['AUTH_CSRF'], (string)$_POST['auth_csrf']);
 }
 
 function authRequireAdmin()

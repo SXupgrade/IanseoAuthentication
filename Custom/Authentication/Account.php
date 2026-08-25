@@ -5,7 +5,10 @@
  * involvement needed (this module has no e-mail column on AclUsers to auto-match against, so
  * linking only ever happens from an already-authenticated session, never automatically).
  */
-require_once(dirname(__FILE__) . '/../../config.php');
+// Real module code lives in Modules/Custom/Authentication/ (one level
+// deeper than the public Modules/Authentication/ shim that forwards
+// here), hence the extra '../' compared to a plain Ianseo module.
+require_once(dirname(__FILE__) . '/../../../config.php');
 require_once(dirname(__FILE__) . '/AuthFunctions.php');
 
 if (empty($_SESSION['AUTH_User'])) {
@@ -18,8 +21,12 @@ $message = '';
 $error = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'unlink') {
-    authUnlinkExternalIdentity($username, 'competplus');
-    $message = authText('MsgUnlinked');
+    if (!authCsrfCheck()) {
+        $error = authText('ErrCsrf');
+    } else {
+        authUnlinkExternalIdentity($username, 'competplus');
+        $message = authText('MsgUnlinked');
+    }
 }
 
 if (!empty($_GET['competplus_message'])) {
@@ -52,6 +59,7 @@ include($CFG->DOCUMENT_PATH . 'Common/Templates/head.php');
     <?php } elseif ($linked) { ?>
         <div class="cp-account-status linked"><?php echo htmlspecialchars(authText('LinkedSince', array('date' => $linked->LinkedAt))); ?></div>
         <form method="post" onsubmit="return confirm('<?php echo htmlspecialchars(addslashes(authText('ConfirmUnlink')), ENT_QUOTES); ?>')">
+            <?php echo authCsrfField(); ?>
             <input type="hidden" name="action" value="unlink">
             <input type="submit" value="<?php echo htmlspecialchars(authText('BtnUnlink')); ?>">
         </form>

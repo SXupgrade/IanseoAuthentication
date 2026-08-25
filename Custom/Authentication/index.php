@@ -1,10 +1,16 @@
 <?php
-require_once(dirname(__FILE__) . '/../../config.php');
+// Real module code lives in Modules/Custom/Authentication/ (one level
+// deeper than the public Modules/Authentication/ shim that forwards
+// here), hence the extra '../' compared to a plain Ianseo module.
+require_once(dirname(__FILE__) . '/../../../config.php');
 require_once(dirname(__FILE__) . '/AuthFunctions.php');
+require_once(dirname(__FILE__) . '/ConfigWriter.php');
+require_once(dirname(__FILE__) . '/Updater.php');
 
 authEnsureTables();
 $error = '';
 $message = '';
+$updateStatus = null; // set by check_update/apply_update below, or filled in passively before render
 
 $canAdmin = !empty($_SESSION['AUTH_ROOT']) || ((($_SERVER['REMOTE_ADDR'] ?? '') === '127.0.0.1' || ($_SERVER['REMOTE_ADDR'] ?? '') === '::1') && (($_SERVER['SERVER_ADDR'] ?? '') === '127.0.0.1' || ($_SERVER['SERVER_ADDR'] ?? '') === '::1'));
 if (!$canAdmin) {
@@ -142,9 +148,9 @@ function authAccessLabel($featureString)
 // htmlspecialchars() escapes the result for the double-quoted HTML attribute it sits in. Browsers
 // decode the HTML entity back to a literal character before JS parses the attribute, so the
 // backslash escape reaches the JS parser intact either way.
-function authJsConfirmAttr($key)
+function authJsConfirmAttr($key, $vars = null)
 {
-    return htmlspecialchars(addslashes(authText($key)), ENT_QUOTES);
+    return htmlspecialchars(addslashes(authText($key, $vars)), ENT_QUOTES);
 }
 
 // Feature/subfeature level currently stored for $pattern's rule, for pre-filling the "edit
@@ -166,7 +172,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Never let the currently logged-in admin disable or delete their OWN account from this
     // screen -- the module has no separate recovery path if that leaves zero enabled root users.
     $isSelfAction = $user !== '' && $user === ($_SESSION['AUTH_User'] ?? '');
-    if ($user === '') {
+    if (!authCsrfCheck()) {
+        $error = authText('ErrCsrf');
+    } elseif ($action === 'toggle_userauth') {
+        $enable = empty($CFG->USERAUTH);
+        $writeError = '';
+        if (authSetUserAuthEnabled($CFG->DOCUMENT_PATH, $enable, $writeError)) {
+            $CFG->USERAUTH = $enable; // reflect the fresh on-disk state for the rest of this request
+            $message = $enable ? authText('MsgUserAuthEnabled') : authText('MsgUserAuthDisabled');
+        } else {
+            $error = authText('ErrUserAuthWrite', array('reason' => $writeError));
+        }
+    } elseif ($action === 'check_update') {
+        $updateError = '';
+        $updateStatus = authUpdaterCheckForUpdate($CFG->DOCUMENT_PATH, $updateError, true);
+        if ($updateStatus === null) {
+            $error = authText('ErrUpdateCheckFailed', array('reason' => $updateError));
+        } else {
+            $message = authText('MsgUpdateCheckDone');
+        }
+    } elseif ($action === 'apply_update') {
+        $updateError = '';
+        if (authUpdaterApplyUpdate($CFG->DOCUMENT_PATH, $updateError)) {
+            $message = authText('MsgUpdateApplied');
+        } else {
+            $error = authText('ErrUpdateApplyFailed', array('reason' => $updateError));
+        }
+    } elseif ($user === '') {
         $error = authText('ErrUserRequired');
     } elseif ($action === 'save_user') {
         $name = trim((string)($_POST['name'] ?? ''));
@@ -232,6 +264,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
+if ($updateStatus === null) {
+    // Passive check for a plain page load (or right after a successful apply_update, so the
+    // banner reflects the just-installed version immediately): cached, so this almost never
+    // actually hits the network -- and on a genuine failure here (GitHub briefly unreachable,
+    // first-ever visit with no cache yet) we just skip the update banner instead of showing an
+    // error nobody asked to see.
+    $silentUpdateError = '';
+    $updateStatus = authUpdaterCheckForUpdate($CFG->DOCUMENT_PATH, $silentUpdateError, false);
+}
+
 $users = array();
 $q = safe_r_SQL("SELECT * FROM `AclUsers` ORDER BY `AclUsUser`");
 while ($r = safe_fetch($q)) { $users[] = $r; }
@@ -275,6 +317,9 @@ include($CFG->DOCUMENT_PATH . 'Common/Templates/head.php');
 .auth-feature-row-root td{background:#fff8e7!important}.auth-permissions td.Center{text-align:center}.auth-muted{color:#667789}.auth-success{background:#eaf8ef;border:1px solid #9bd0a6;padding:10px 12px;border-radius:10px}.auth-error{background:#fdecec;border:1px solid #e0a0a0;padding:10px 12px;border-radius:10px}.cp-license-note{margin-top:14px;padding:10px 12px;border-radius:10px;background:#f3f7fb;border:1px solid #dde8f3;color:#46586d}.cp-lang-switch{text-align:right;font-size:.8rem;margin-bottom:10px}.cp-lang-switch a{color:#5f6f83;text-decoration:none}.cp-lang-switch a:hover{text-decoration:underline}
 
 .acc-toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:12px}
+.cp-module-status{padding:12px 14px;border:1px solid #dde6ef;border-radius:12px;background:#fafcff;margin-bottom:18px}
+.cp-module-status-sub{margin:6px 0 0;font-size:.85em;color:#5f6f83}
+.cp-module-status-sub .auth-badge{margin-right:6px}
 .acc-table-wrap{overflow-x:auto;border:1px solid #dde6ef;border-radius:14px;background:#fff;box-shadow:0 10px 24px rgba(30,55,90,.05)}
 .acc-table{width:100%;border-collapse:collapse;font-size:.9rem;min-width:560px}
 .acc-table th{background:#f7fafc;color:#5f6f83;font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:10px 14px;text-align:left;border-bottom:1.5px solid #e2e8f0}
@@ -300,8 +345,10 @@ include($CFG->DOCUMENT_PATH . 'Common/Templates/head.php');
 .cp-modal-head h2{margin:0;font-size:1.1rem}
 .cp-modal-close{border:none;background:none;font-size:1.3rem;line-height:1;cursor:pointer;color:#5f6f83;padding:2px 6px;border-radius:6px}
 .cp-modal-close:hover{background:#f2f6fb;color:#26313f}
-.cp-btn{display:inline-block;padding:.5rem 1.1rem;border-radius:8px;text-decoration:none;font-size:.9rem;font-weight:600;background:#10233f;color:#fff}
+.cp-btn{display:inline-block;padding:.5rem 1.1rem;border-radius:8px;text-decoration:none;font-size:.9rem;font-weight:600;background:#10233f;color:#fff;border:1px solid #10233f;cursor:pointer}
 .cp-btn:hover{background:#1c3a63}
+.cp-btn-outline{display:inline-block;padding:.5rem 1.1rem;border-radius:8px;text-decoration:none;font-size:.9rem;font-weight:600;background:#fff;color:#10233f;border:1px solid #c7d4e3;cursor:pointer}
+.cp-btn-outline:hover{background:#f3f7fb}
 .btn-xs-link{font-size:.82rem;color:#10233f;font-weight:600;text-decoration:none}
 .btn-xs-link:hover{text-decoration:underline}
 @media(max-width:900px){.cp-admin-hero{display:block}.cp-admin-credit{text-align:left;margin-top:12px}}
@@ -322,6 +369,53 @@ include($CFG->DOCUMENT_PATH . 'Common/Templates/head.php');
     <?php if ($message) { ?><div class="auth-success"><?php echo htmlspecialchars($message); ?></div><?php } ?>
     <?php if ($error) { ?><div class="auth-error"><?php echo htmlspecialchars($error); ?></div><?php } ?>
     <p class="cp-license-note"><?php echo authText('FooterAdminCredit', array('a' => '<a href="https://competplus.fr" target="_blank" rel="noopener noreferrer">Compet+</a>')); ?></p>
+
+    <div class="acc-toolbar cp-module-status">
+        <div>
+            <h2 style="margin:0"><?php echo htmlspecialchars(authText('SectionModuleStatus')); ?></h2>
+            <p class="cp-module-status-sub">
+                <span class="auth-badge <?php echo $CFG->USERAUTH ? 'on' : 'off'; ?>">
+                    <?php echo htmlspecialchars($CFG->USERAUTH ? authText('StatusEnabled') : authText('StatusDisabled')); ?>
+                </span>
+                <?php echo htmlspecialchars($CFG->USERAUTH ? authText('ModuleStatusOnHint') : authText('ModuleStatusOffHint')); ?>
+            </p>
+        </div>
+        <form method="post" onsubmit="return confirm('<?php echo htmlspecialchars(addslashes($CFG->USERAUTH ? authText('ConfirmDisableModule') : authText('ConfirmEnableModule')), ENT_QUOTES); ?>')">
+            <?php echo authCsrfField(); ?>
+            <input type="hidden" name="action" value="toggle_userauth">
+            <input type="submit" class="cp-btn" value="<?php echo htmlspecialchars($CFG->USERAUTH ? authText('BtnDisableModule') : authText('BtnEnableModule')); ?>">
+        </form>
+    </div>
+
+    <div class="acc-toolbar cp-module-status">
+        <div>
+            <h2 style="margin:0"><?php echo htmlspecialchars(authText('SectionModuleUpdate')); ?></h2>
+            <p class="cp-module-status-sub">
+                <?php echo htmlspecialchars(authText('CurrentVersion', array('version' => $updateStatus['currentVersion'] ?? authUpdaterCurrentVersion($CFG->DOCUMENT_PATH)))); ?>
+                <?php if ($updateStatus && $updateStatus['updateAvailable']) { ?>
+                    — <span class="auth-badge on"><?php echo htmlspecialchars(authText('UpdateAvailable', array('version' => $updateStatus['latestVersion']))); ?></span>
+                <?php } elseif ($updateStatus) { ?>
+                    — <span class="auth-badge"><?php echo htmlspecialchars(authText('UpToDate')); ?></span>
+                <?php } else { ?>
+                    — <span class="auth-muted"><?php echo htmlspecialchars(authText('UpdateCheckUnavailable')); ?></span>
+                <?php } ?>
+            </p>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <form method="post">
+                <?php echo authCsrfField(); ?>
+                <input type="hidden" name="action" value="check_update">
+                <input type="submit" class="cp-btn-outline" value="<?php echo htmlspecialchars(authText('BtnCheckUpdate')); ?>">
+            </form>
+            <?php if ($updateStatus && $updateStatus['updateAvailable']) { ?>
+            <form method="post" onsubmit="return confirm('<?php echo authJsConfirmAttr('ConfirmApplyUpdate', array('version' => $updateStatus['latestVersion'])); ?>')">
+                <?php echo authCsrfField(); ?>
+                <input type="hidden" name="action" value="apply_update">
+                <input type="submit" class="cp-btn" value="<?php echo htmlspecialchars(authText('BtnApplyUpdate')); ?>">
+            </form>
+            <?php } ?>
+        </div>
+    </div>
 
     <div class="acc-toolbar">
         <h2 style="margin:0;flex:1"><?php echo htmlspecialchars(authText('SectionUsers')); ?></h2>
@@ -360,11 +454,13 @@ include($CFG->DOCUMENT_PATH . 'Common/Templates/head.php');
                                 <a href="?user=<?php echo urlencode($u->AclUsUser); ?>&open=rights"><?php echo htmlspecialchars(authText('ActionRights')); ?></a>
                                 <?php if (!$isSelfRow) { ?>
                                 <form method="post">
+                                    <?php echo authCsrfField(); ?>
                                     <input type="hidden" name="action" value="toggle_enabled">
                                     <input type="hidden" name="user" value="<?php echo htmlspecialchars($u->AclUsUser); ?>">
                                     <button type="submit"><?php echo htmlspecialchars($enabled ? authText('ActionDisable') : authText('ActionEnable')); ?></button>
                                 </form>
                                 <form method="post" onsubmit="return confirm('<?php echo authJsConfirmAttr('ConfirmDeleteUser'); ?>')">
+                                    <?php echo authCsrfField(); ?>
                                     <input type="hidden" name="action" value="delete_user">
                                     <input type="hidden" name="user" value="<?php echo htmlspecialchars($u->AclUsUser); ?>">
                                     <button type="submit" class="danger"><?php echo htmlspecialchars(authText('BtnDeleteUser')); ?></button>
@@ -387,6 +483,7 @@ include($CFG->DOCUMENT_PATH . 'Common/Templates/head.php');
                 <button type="button" class="cp-modal-close" onclick="this.closest('.cp-modal-overlay').style.display='none'" aria-label="<?php echo htmlspecialchars(authText('Close')); ?>">×</button>
             </div>
             <form method="post">
+                <?php echo authCsrfField(); ?>
                 <input type="hidden" name="action" value="save_user">
                 <table class="Tabella">
                     <tr><td><?php echo htmlspecialchars(authText('FieldUser')); ?></td><td><input name="user" maxlength="16" required <?php echo $selectedUserRow ? 'readonly' : ''; ?> value="<?php echo htmlspecialchars($selectedUserRow->AclUsUser ?? ''); ?>"> <small><?php echo htmlspecialchars(authText('HintUsername')); ?></small></td></tr>
@@ -418,6 +515,7 @@ include($CFG->DOCUMENT_PATH . 'Common/Templates/head.php');
                             <a class="btn-xs-link" href="?user=<?php echo urlencode($selectedUserRow->AclUsUser); ?>&open=rights&pattern=<?php echo urlencode($rule['pattern']); ?>#acc-rule-form"><?php echo htmlspecialchars(authText('ActionEdit')); ?></a>
                             &nbsp;
                             <form method="post" style="display:inline" onsubmit="return confirm('<?php echo authJsConfirmAttr('ConfirmDeleteRule'); ?>')">
+                                <?php echo authCsrfField(); ?>
                                 <input type="hidden" name="action" value="delete_rule">
                                 <input type="hidden" name="user" value="<?php echo htmlspecialchars($selectedUserRow->AclUsUser); ?>">
                                 <input type="hidden" name="pattern" value="<?php echo htmlspecialchars($rule['pattern']); ?>">
@@ -433,6 +531,7 @@ include($CFG->DOCUMENT_PATH . 'Common/Templates/head.php');
 
             <h3 id="acc-rule-form"><?php echo htmlspecialchars(authText('SectionAddUpdateAccess')); ?></h3>
             <form method="post">
+                <?php echo authCsrfField(); ?>
                 <input type="hidden" name="action" value="save_rule">
                 <input type="hidden" name="user" value="<?php echo htmlspecialchars($selectedUserRow->AclUsUser); ?>">
                 <table class="Tabella">

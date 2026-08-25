@@ -1,5 +1,8 @@
 <?php
-require_once(dirname(__FILE__) . '/../../config.php');
+// Real module code lives in Modules/Custom/Authentication/ (one level
+// deeper than the public Modules/Authentication/ shim that forwards
+// here), hence the extra '../' compared to a plain Ianseo module.
+require_once(dirname(__FILE__) . '/../../../config.php');
 require_once(dirname(__FILE__) . '/AuthFunctions.php');
 
 authEnsureTables();
@@ -24,7 +27,9 @@ function authLoginReturnUrl()
 
 $returnUrl = authLoginReturnUrl();
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if ($isInitialSetup) {
+    if (!authCsrfCheck()) {
+        $error = authText('ErrCsrf');
+    } elseif ($isInitialSetup) {
         $password = (string)($_POST['password'] ?? '');
         $confirmPassword = (string)($_POST['confirm_password'] ?? '');
         if ($password !== $confirmPassword) {
@@ -65,6 +70,7 @@ include($CFG->DOCUMENT_PATH . 'Common/Templates/head.php');
             <?php echo htmlspecialchars(authText('SetupWarning')); ?>
         </div>
         <form method="post">
+            <?php echo authCsrfField(); ?>
             <input type="hidden" name="return" value="<?php echo htmlspecialchars($returnUrl); ?>">
             <table class="Tabella">
                 <tr><th colspan="2"><?php echo htmlspecialchars(authText('CreateFirstAdmin')); ?></th></tr>
@@ -78,6 +84,7 @@ include($CFG->DOCUMENT_PATH . 'Common/Templates/head.php');
         </form>
     <?php } else { ?>
         <form method="post">
+            <?php echo authCsrfField(); ?>
             <input type="hidden" name="return" value="<?php echo htmlspecialchars($returnUrl); ?>">
             <table class="Tabella">
                 <tr><th colspan="2"><?php echo htmlspecialchars(authText('SectionLogin')); ?></th></tr>

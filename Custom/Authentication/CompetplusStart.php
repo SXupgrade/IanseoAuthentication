@@ -5,7 +5,10 @@
  * account -- it requires an active local session and never creates or logs into a different
  * account. Anything else is the default ?mode=login path for an unauthenticated visitor.
  */
-require_once(dirname(__FILE__) . '/../../config.php');
+// Real module code lives in Modules/Custom/Authentication/ (one level
+// deeper than the public Modules/Authentication/ shim that forwards
+// here), hence the extra '../' compared to a plain Ianseo module.
+require_once(dirname(__FILE__) . '/../../../config.php');
 require_once(dirname(__FILE__) . '/CompetplusOAuth.php');
 
 $mode = ($_GET['mode'] ?? '') === 'link' ? 'link' : 'login';
