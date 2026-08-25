@@ -49,7 +49,7 @@ $lang = array(
     'BtnLogin'                => 'Login',
     'Or'                      => 'or',
     'BtnLoginWithCompetplus'  => 'Sign in with Compet+',
-    'NoteMadeAvailable'       => 'This authentication module is made available by {a}.',
+    'NoteMadeAvailable'       => 'This authentication module is developed by {a}.',
     'FooterOpenSource'        => 'Open-source module with attribution. See {license} and {notice}.',
 
     // ── Account.php ─────────────────────────────────────────────────────────
@@ -67,7 +67,7 @@ $lang = array(
     // ── index.php (admin) ───────────────────────────────────────────────────
     'PageTitleAdmin'        => 'Authentication admin',
     'AdminSubtitle'          => 'User access, tournament visibility and fine-grained ACL subfeatures.',
-    'ModuleCredit'           => 'Module made available by',
+    'ModuleCredit'           => 'Developed by',
     'MsgUserSaved'           => 'User saved.',
     'MsgUserDeleted'         => 'User deleted.',
     'MsgRuleSaved'           => 'Access rule saved.',
@@ -94,7 +94,7 @@ $lang = array(
     'UpdateCheckUnavailable' => 'Could not check for updates (no network access?)',
     'BtnCheckUpdate'         => 'Check for updates',
     'BtnApplyUpdate'         => 'Update now',
-    'ConfirmApplyUpdate'     => 'Update this module to version {version}? A backup of the current files is kept automatically, but do this outside of peak hours if possible.',
+    'ConfirmApplyUpdate'     => 'Update this module to version {version}? A backup of the current files is kept automatically. Perform this operation outside peak hours when possible.',
     'MsgUpdateCheckDone'     => 'Update check done.',
     'MsgUpdateApplied'       => 'Module updated.',
     'ErrUpdateCheckFailed'   => 'Could not check for updates: {reason}',

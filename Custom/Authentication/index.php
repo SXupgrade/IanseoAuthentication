@@ -313,7 +313,7 @@ $PAGE_TITLE = authText('PageTitleAdmin');
 include($CFG->DOCUMENT_PATH . 'Common/Templates/head.php');
 ?>
 <style>
-.cp-admin-shell{max-width:1180px;margin:18px auto;padding:0 12px}.cp-admin-hero{display:flex;justify-content:space-between;gap:18px;align-items:center;margin-bottom:16px;padding:18px 20px;border:1px solid #d8e3f0;border-radius:18px;background:linear-gradient(135deg,#f7fbff 0%,#ffffff 58%,#eef7f3 100%);box-shadow:0 18px 40px rgba(30,55,90,.08)}.cp-admin-brand{display:flex;gap:14px;align-items:center}.cp-admin-logo{width:52px;height:52px;border-radius:15px;background:#10233f;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:23px;letter-spacing:-.04em}.cp-admin-title{margin:0;font-size:26px;line-height:1.15}.cp-admin-subtitle{margin:5px 0 0;color:#5f6f83}.cp-admin-credit{font-size:.95em;color:#5f6f83;text-align:right}.cp-admin-credit a{font-weight:700}.auth-badge{display:inline-block;padding:2px 7px;border-radius:999px;background:#eef3f8;font-size:.85em}.auth-badge.on{background:#eaf8ef;color:#1e7b3a}.auth-badge.off{background:#fdecec;color:#a53939}.auth-badge.root{background:#fff3d6;color:#8a5a00}.auth-permissions{width:100%;border-collapse:collapse}.auth-permissions th,.auth-permissions td{padding:7px;border-bottom:1px solid #edf1f5}.auth-subfeature td{background:#fafcff}.auth-subfeature td:first-child{padding-left:30px}.auth-feature-row td{font-weight:600;background:#fbfdff}
+.cp-admin-shell{max-width:1180px;margin:18px auto;padding:0 12px}.cp-admin-hero{display:flex;justify-content:space-between;gap:18px;align-items:center;margin-bottom:16px;padding:18px 20px;border:1px solid #d8e3f0;border-radius:18px;background:linear-gradient(135deg,#f7fbff 0%,#ffffff 58%,#eef7f3 100%);box-shadow:0 18px 40px rgba(30,55,90,.08)}.cp-admin-brand{display:flex;gap:14px;align-items:center}.cp-admin-logo{width:52px;height:52px;border-radius:15px;background:#eaf1f9;display:flex;align-items:center;justify-content:center;padding:9px;flex-shrink:0}.cp-admin-logo svg{width:100%;height:100%}.cp-admin-title{margin:0;font-size:26px;line-height:1.15}.cp-admin-subtitle{margin:5px 0 0;color:#5f6f83}.cp-admin-credit{font-size:.95em;color:#5f6f83;text-align:right}.cp-admin-credit a{font-weight:700}.auth-badge{display:inline-block;padding:2px 7px;border-radius:999px;background:#eef3f8;font-size:.85em}.auth-badge.on{background:#eaf8ef;color:#1e7b3a}.auth-badge.off{background:#fdecec;color:#a53939}.auth-badge.root{background:#fff3d6;color:#8a5a00}.auth-permissions{width:100%;border-collapse:collapse}.auth-permissions th,.auth-permissions td{padding:7px;border-bottom:1px solid #edf1f5}.auth-subfeature td{background:#fafcff}.auth-subfeature td:first-child{padding-left:30px}.auth-feature-row td{font-weight:600;background:#fbfdff}
 .auth-feature-row-root td{background:#fff8e7!important}.auth-permissions td.Center{text-align:center}.auth-muted{color:#667789}.auth-success{background:#eaf8ef;border:1px solid #9bd0a6;padding:10px 12px;border-radius:10px}.auth-error{background:#fdecec;border:1px solid #e0a0a0;padding:10px 12px;border-radius:10px}.cp-license-note{margin-top:14px;padding:10px 12px;border-radius:10px;background:#f3f7fb;border:1px solid #dde8f3;color:#46586d}.cp-lang-switch{text-align:right;font-size:.8rem;margin-bottom:10px}.cp-lang-switch a{color:#5f6f83;text-decoration:none}.cp-lang-switch a:hover{text-decoration:underline}
 
 .acc-toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:12px}
@@ -330,7 +330,7 @@ include($CFG->DOCUMENT_PATH . 'Common/Templates/head.php');
 
 .kebab-wrap{position:relative;display:inline-block}
 .kebab-btn{border:1.5px solid #dde6ef;background:#fff;border-radius:8px;width:32px;height:32px;font-size:1.1rem;line-height:1;cursor:pointer;color:#46586d}
-.kebab-btn:hover{border-color:#10233f;color:#10233f}
+.kebab-btn:hover{border-color:#004488;color:#004488}
 .kebab-menu{display:none;position:absolute;right:0;top:38px;z-index:20;min-width:170px;background:#fff;border:1px solid #dde6ef;border-radius:10px;box-shadow:0 14px 30px rgba(16,24,40,.14);padding:6px;flex-direction:column;gap:2px}
 .kebab-menu.open{display:flex}
 .kebab-menu a,.kebab-menu button{display:block;width:100%;text-align:left;padding:8px 10px;border-radius:7px;border:none;background:none;font-size:.85rem;color:#26313f;text-decoration:none;cursor:pointer;font-family:inherit}
@@ -345,11 +345,11 @@ include($CFG->DOCUMENT_PATH . 'Common/Templates/head.php');
 .cp-modal-head h2{margin:0;font-size:1.1rem}
 .cp-modal-close{border:none;background:none;font-size:1.3rem;line-height:1;cursor:pointer;color:#5f6f83;padding:2px 6px;border-radius:6px}
 .cp-modal-close:hover{background:#f2f6fb;color:#26313f}
-.cp-btn{display:inline-block;padding:.5rem 1.1rem;border-radius:8px;text-decoration:none;font-size:.9rem;font-weight:600;background:#10233f;color:#fff;border:1px solid #10233f;cursor:pointer}
-.cp-btn:hover{background:#1c3a63}
-.cp-btn-outline{display:inline-block;padding:.5rem 1.1rem;border-radius:8px;text-decoration:none;font-size:.9rem;font-weight:600;background:#fff;color:#10233f;border:1px solid #c7d4e3;cursor:pointer}
+.cp-btn{display:inline-block;padding:.5rem 1.1rem;border-radius:8px;text-decoration:none;font-size:.9rem;font-weight:600;background:#004488;color:#fff;border:1px solid #004488;cursor:pointer}
+.cp-btn:hover{background:#003366}
+.cp-btn-outline{display:inline-block;padding:.5rem 1.1rem;border-radius:8px;text-decoration:none;font-size:.9rem;font-weight:600;background:#fff;color:#004488;border:1px solid #c7d4e3;cursor:pointer}
 .cp-btn-outline:hover{background:#f3f7fb}
-.btn-xs-link{font-size:.82rem;color:#10233f;font-weight:600;text-decoration:none}
+.btn-xs-link{font-size:.82rem;color:#004488;font-weight:600;text-decoration:none}
 .btn-xs-link:hover{text-decoration:underline}
 @media(max-width:900px){.cp-admin-hero{display:block}.cp-admin-credit{text-align:left;margin-top:12px}}
 </style>
@@ -357,7 +357,7 @@ include($CFG->DOCUMENT_PATH . 'Common/Templates/head.php');
     <?php echo authLanguageSwitcherHtml(); ?>
     <div class="cp-admin-hero">
         <div class="cp-admin-brand">
-            <div class="cp-admin-logo">C+</div>
+            <div class="cp-admin-logo"><?php echo authCompetplusLogoSvg(); ?></div>
             <div>
                 <h1 class="cp-admin-title"><?php echo htmlspecialchars(authText('PageTitleAdmin')); ?></h1>
                 <p class="cp-admin-subtitle"><?php echo htmlspecialchars(authText('AdminSubtitle')); ?></p>
