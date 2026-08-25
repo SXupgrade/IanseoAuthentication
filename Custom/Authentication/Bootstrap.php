@@ -44,7 +44,41 @@ if (!function_exists('competplusAuthEnsureShim')) {
         $shimDir = rtrim($documentPath, '/\\') . '/Modules/Authentication';
         $marker = $shimDir . '/.shim-version';
 
-        if (is_file($marker) && trim((string) @file_get_contents($marker)) === $shimVersion) {
+        // 'entry' = reachable directly by URL with nothing else loaded yet, so its shim must
+        // bootstrap config.php itself before it can use $CFG. 'lib' = only ever require_once'd
+        // from PHP that already bootstrapped config.php ($CFG already available).
+        $expectedFiles = array(
+            'AuthFunctions.php' => 'lib',
+            'BlockFunction.php' => 'lib',
+            'CompetplusOAuth.php' => 'lib',
+            'index.php' => 'entry',
+            'LogIn.php' => 'entry',
+            'LogOut.php' => 'entry',
+            'Account.php' => 'entry',
+            'CompetplusStart.php' => 'entry',
+            'CompetplusCallback.php' => 'entry',
+        );
+
+        // Real-world observed failure: Ianseo's own self-updater (Update/UpdateIanseo.php)
+        // deletes files under Modules/Authentication/ one by one based on a server-computed list
+        // it never validates against what's actually still on disk afterward -- if that list
+        // (or an interrupted update) leaves .shim-version behind while removing the actual
+        // forwarder .php files, trusting the marker alone here would skip regenerating them
+        // forever, since nothing else ever clears a stale-but-present marker. So the marker is
+        // only ever trusted together with a check that every expected file is still physically
+        // there -- cheap (a handful of is_file() calls), and the only way to catch a partial
+        // deletion like this one.
+        $markerCurrent = is_file($marker) && trim((string) @file_get_contents($marker)) === $shimVersion;
+        $allFilesPresent = true;
+        if ($markerCurrent) {
+            foreach (array_keys($expectedFiles) as $expectedFile) {
+                if (!is_file($shimDir . '/' . $expectedFile)) {
+                    $allFilesPresent = false;
+                    break;
+                }
+            }
+        }
+        if ($markerCurrent && $allFilesPresent) {
             return;
         }
 
@@ -60,31 +94,20 @@ if (!function_exists('competplusAuthEnsureShim')) {
             . "// Do not edit — this file is rewritten on demand. Edit the real\n"
             . "// file in Modules/Custom/Authentication/ instead.\n";
 
-        // Reachable directly by URL with nothing else loaded yet, so their
-        // shim must bootstrap config.php itself before it can use $CFG.
         $entryPoint = function ($real) use ($header) {
             return $header
                 . "require_once dirname(__FILE__) . '/../../config.php';\n"
                 . "require_once \$CFG->DOCUMENT_PATH . 'Modules/Custom/Authentication/{$real}';\n";
         };
-        // Only ever require_once'd from PHP that already bootstrapped
-        // config.php ($CFG is already available).
         $includeOnly = function ($real) use ($header) {
             return $header
                 . "require_once \$CFG->DOCUMENT_PATH . 'Modules/Custom/Authentication/{$real}';\n";
         };
 
-        $files = array(
-            'AuthFunctions.php'      => $includeOnly('AuthFunctions.php'),
-            'BlockFunction.php'      => $includeOnly('BlockFunction.php'),
-            'CompetplusOAuth.php'    => $includeOnly('CompetplusOAuth.php'),
-            'index.php'              => $entryPoint('index.php'),
-            'LogIn.php'              => $entryPoint('LogIn.php'),
-            'LogOut.php'             => $entryPoint('LogOut.php'),
-            'Account.php'            => $entryPoint('Account.php'),
-            'CompetplusStart.php'    => $entryPoint('CompetplusStart.php'),
-            'CompetplusCallback.php' => $entryPoint('CompetplusCallback.php'),
-        );
+        $files = array();
+        foreach ($expectedFiles as $name => $kind) {
+            $files[$name] = $kind === 'entry' ? $entryPoint($name) : $includeOnly($name);
+        }
 
         $allWritten = true;
         foreach ($files as $name => $content) {

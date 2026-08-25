@@ -91,7 +91,13 @@ Authentication/`):
 - `Bootstrap.php`: regenerates the forwarder files Ianseo expects at `Modules/Authentication/`.
   Bump `$shimVersion` in here if you ever change what those forwarders contain, or add/remove a
   module file, so existing installs pick up the change on their next request instead of keeping a
-  stale shim forever.
+  stale shim forever. Never trusts the version marker (`.shim-version`) on its own: observed on a
+  real install after running Ianseo's own "Update Ianseo" — its self-updater deletes files under
+  `Modules/Authentication/` one by one from a list it never re-checks against the filesystem
+  afterward, and left `.shim-version` behind while removing the actual forwarders, so the marker
+  alone said "up to date" while the module was actually broken. `Bootstrap.php` now also checks
+  that every expected file still physically exists before trusting the marker — a stale-but-present
+  marker with even one file missing triggers a full regeneration, same as if the marker were gone.
 - `ConfigWriter.php`: toggles `$CFG->USERAUTH` in Ianseo's root `config.php` from the admin
   screen's "Enable/Disable authentication" button, and installs the safety-net block described
   under "Install" above the first time it's switched on.
