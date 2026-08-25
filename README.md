@@ -95,7 +95,54 @@ Authentication/`):
 - `ConfigWriter.php`: toggles `$CFG->USERAUTH` in Ianseo's root `config.php` from the admin
   screen's "Enable/Disable authentication" button, and installs the safety-net block described
   under "Install" above the first time it's switched on.
+- `Updater.php`: checks GitHub for a newer version and applies it — see "Versioning and
+  self-update" below.
+- `VERSION`: the version currently installed (plain semver text, e.g. `1.1.0`) — compared against
+  GitHub tags by `Updater.php`. Gets overwritten by every update, same as everything else in this
+  folder.
 - `Languages/<code>.php`: this module's own translation strings — see "Language" below.
+
+## Versioning and self-update
+
+Releases are plain git tags on this repo (`vX.Y.Z`, e.g. `v1.1.0`) — no separate "publish a
+release" step needed, `git tag vX.Y.Z && git push origin vX.Y.Z` is the whole release process.
+`VERSION` inside `Custom/Authentication/` tracks which one is currently installed.
+
+The admin screen (`index.php`) checks the highest `vX.Y.Z` tag on
+`github.com/SXupgrade/IanseoAuthentication` against the installed `VERSION` — cached for 6 hours
+(`.update-check-cache.json`, next to `VERSION`, never committed) so a normal page load essentially
+never actually calls GitHub; "Check for updates" forces a fresh check on demand. This runs
+automatically on every visit to the admin screen (read-only, no changes without a click), but
+**only an account with `$canAdmin` (a `AUTH_ROOT` session, or physically on the server machine
+during initial setup — the same gate every other sensitive action on this screen already uses) can
+click "Update now".**
+
+Clicking it:
+
+1. Downloads that tag's source as a zip directly from GitHub (`zipball_url` from the same tags
+   API call, no separate lookup).
+2. Extracts it to a temp directory and builds the new `Modules/Custom/Authentication/` fully in a
+   fresh staging directory next to the live one — the live install isn't touched at all while this
+   runs, so a failure here (disk full, permissions, a bad download) leaves it exactly as it was.
+3. Only once that staging copy fully succeeds: two fast `rename()` calls swap the live directory
+   out to a timestamped backup (`Modules/Custom/Authentication-backup-<timestamp>/`, kept
+   indefinitely — delete old ones by hand whenever) and the staged one in. If the second rename
+   fails, the first is rolled back automatically — the live install is never left half-updated.
+
+The repo to check (`SXupgrade/IanseoAuthentication`) is a hardcoded constant in `Updater.php`, not
+read from `$CFG` or any request input, so there's no way to point this at anything other than the
+real module repo. Same trust model as Ianseo's own self-updater
+(`Update/UpdateIanseo.php`, downloading from `ianseo.net`): HTTPS to a fixed, known-good host, no
+extra signature layer on top.
+
+Needs the PHP `zip` extension (`ZipArchive`) — the update button reports clearly if it's missing
+instead of silently doing nothing; install the new `Custom/Authentication/` by hand in that case,
+same as step 1 of "Install" above.
+
+**An install running a version from *before* this feature existed can't discover or apply updates
+on its own** — it has no `VERSION` file or `Updater.php` yet, so there's nothing to click. That one
+jump has to be manual (replace `Modules/Custom/Authentication/` with a fresh checkout, same as a
+first install); every version from here on can update itself from then on.
 
 ## Language
 

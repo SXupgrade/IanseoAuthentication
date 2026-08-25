@@ -5,10 +5,12 @@
 require_once(dirname(__FILE__) . '/../../../config.php');
 require_once(dirname(__FILE__) . '/AuthFunctions.php');
 require_once(dirname(__FILE__) . '/ConfigWriter.php');
+require_once(dirname(__FILE__) . '/Updater.php');
 
 authEnsureTables();
 $error = '';
 $message = '';
+$updateStatus = null; // set by check_update/apply_update below, or filled in passively before render
 
 $canAdmin = !empty($_SESSION['AUTH_ROOT']) || ((($_SERVER['REMOTE_ADDR'] ?? '') === '127.0.0.1' || ($_SERVER['REMOTE_ADDR'] ?? '') === '::1') && (($_SERVER['SERVER_ADDR'] ?? '') === '127.0.0.1' || ($_SERVER['SERVER_ADDR'] ?? '') === '::1'));
 if (!$canAdmin) {
@@ -146,9 +148,9 @@ function authAccessLabel($featureString)
 // htmlspecialchars() escapes the result for the double-quoted HTML attribute it sits in. Browsers
 // decode the HTML entity back to a literal character before JS parses the attribute, so the
 // backslash escape reaches the JS parser intact either way.
-function authJsConfirmAttr($key)
+function authJsConfirmAttr($key, $vars = null)
 {
-    return htmlspecialchars(addslashes(authText($key)), ENT_QUOTES);
+    return htmlspecialchars(addslashes(authText($key, $vars)), ENT_QUOTES);
 }
 
 // Feature/subfeature level currently stored for $pattern's rule, for pre-filling the "edit
@@ -180,6 +182,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $message = $enable ? authText('MsgUserAuthEnabled') : authText('MsgUserAuthDisabled');
         } else {
             $error = authText('ErrUserAuthWrite', array('reason' => $writeError));
+        }
+    } elseif ($action === 'check_update') {
+        $updateError = '';
+        $updateStatus = authUpdaterCheckForUpdate($CFG->DOCUMENT_PATH, $updateError, true);
+        if ($updateStatus === null) {
+            $error = authText('ErrUpdateCheckFailed', array('reason' => $updateError));
+        } else {
+            $message = authText('MsgUpdateCheckDone');
+        }
+    } elseif ($action === 'apply_update') {
+        $updateError = '';
+        if (authUpdaterApplyUpdate($CFG->DOCUMENT_PATH, $updateError)) {
+            $message = authText('MsgUpdateApplied');
+        } else {
+            $error = authText('ErrUpdateApplyFailed', array('reason' => $updateError));
         }
     } elseif ($user === '') {
         $error = authText('ErrUserRequired');
@@ -245,6 +262,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         authRefreshSessionFromStoredUser();
         $message = authText('MsgRuleDeleted');
     }
+}
+
+if ($updateStatus === null) {
+    // Passive check for a plain page load (or right after a successful apply_update, so the
+    // banner reflects the just-installed version immediately): cached, so this almost never
+    // actually hits the network -- and on a genuine failure here (GitHub briefly unreachable,
+    // first-ever visit with no cache yet) we just skip the update banner instead of showing an
+    // error nobody asked to see.
+    $silentUpdateError = '';
+    $updateStatus = authUpdaterCheckForUpdate($CFG->DOCUMENT_PATH, $silentUpdateError, false);
 }
 
 $users = array();
@@ -318,8 +345,10 @@ include($CFG->DOCUMENT_PATH . 'Common/Templates/head.php');
 .cp-modal-head h2{margin:0;font-size:1.1rem}
 .cp-modal-close{border:none;background:none;font-size:1.3rem;line-height:1;cursor:pointer;color:#5f6f83;padding:2px 6px;border-radius:6px}
 .cp-modal-close:hover{background:#f2f6fb;color:#26313f}
-.cp-btn{display:inline-block;padding:.5rem 1.1rem;border-radius:8px;text-decoration:none;font-size:.9rem;font-weight:600;background:#10233f;color:#fff}
+.cp-btn{display:inline-block;padding:.5rem 1.1rem;border-radius:8px;text-decoration:none;font-size:.9rem;font-weight:600;background:#10233f;color:#fff;border:1px solid #10233f;cursor:pointer}
 .cp-btn:hover{background:#1c3a63}
+.cp-btn-outline{display:inline-block;padding:.5rem 1.1rem;border-radius:8px;text-decoration:none;font-size:.9rem;font-weight:600;background:#fff;color:#10233f;border:1px solid #c7d4e3;cursor:pointer}
+.cp-btn-outline:hover{background:#f3f7fb}
 .btn-xs-link{font-size:.82rem;color:#10233f;font-weight:600;text-decoration:none}
 .btn-xs-link:hover{text-decoration:underline}
 @media(max-width:900px){.cp-admin-hero{display:block}.cp-admin-credit{text-align:left;margin-top:12px}}
@@ -356,6 +385,36 @@ include($CFG->DOCUMENT_PATH . 'Common/Templates/head.php');
             <input type="hidden" name="action" value="toggle_userauth">
             <input type="submit" class="cp-btn" value="<?php echo htmlspecialchars($CFG->USERAUTH ? authText('BtnDisableModule') : authText('BtnEnableModule')); ?>">
         </form>
+    </div>
+
+    <div class="acc-toolbar cp-module-status">
+        <div>
+            <h2 style="margin:0"><?php echo htmlspecialchars(authText('SectionModuleUpdate')); ?></h2>
+            <p class="cp-module-status-sub">
+                <?php echo htmlspecialchars(authText('CurrentVersion', array('version' => $updateStatus['currentVersion'] ?? authUpdaterCurrentVersion($CFG->DOCUMENT_PATH)))); ?>
+                <?php if ($updateStatus && $updateStatus['updateAvailable']) { ?>
+                    — <span class="auth-badge on"><?php echo htmlspecialchars(authText('UpdateAvailable', array('version' => $updateStatus['latestVersion']))); ?></span>
+                <?php } elseif ($updateStatus) { ?>
+                    — <span class="auth-badge"><?php echo htmlspecialchars(authText('UpToDate')); ?></span>
+                <?php } else { ?>
+                    — <span class="auth-muted"><?php echo htmlspecialchars(authText('UpdateCheckUnavailable')); ?></span>
+                <?php } ?>
+            </p>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <form method="post">
+                <?php echo authCsrfField(); ?>
+                <input type="hidden" name="action" value="check_update">
+                <input type="submit" class="cp-btn-outline" value="<?php echo htmlspecialchars(authText('BtnCheckUpdate')); ?>">
+            </form>
+            <?php if ($updateStatus && $updateStatus['updateAvailable']) { ?>
+            <form method="post" onsubmit="return confirm('<?php echo authJsConfirmAttr('ConfirmApplyUpdate', array('version' => $updateStatus['latestVersion'])); ?>')">
+                <?php echo authCsrfField(); ?>
+                <input type="hidden" name="action" value="apply_update">
+                <input type="submit" class="cp-btn" value="<?php echo htmlspecialchars(authText('BtnApplyUpdate')); ?>">
+            </form>
+            <?php } ?>
+        </div>
     </div>
 
     <div class="acc-toolbar">

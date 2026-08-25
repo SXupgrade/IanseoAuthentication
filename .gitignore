@@ -1,0 +1,3 @@
+# Runtime cache written by Updater.php's update check -- never part of the module's source,
+# only ever created inside a deployed instance's Modules/Custom/Authentication/.
+Custom/Authentication/.update-check-cache.json
