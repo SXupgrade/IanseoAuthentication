@@ -1,23 +1,66 @@
 # Compet+ Lightweight Authentication module for Ianseo
 
-Original drop-in module for Ianseo's public `Modules/Authentication` hook points.
+Drop-in module for Ianseo's public `Modules/Authentication` hook points,
+deployed through `Modules/Custom/` — the one directory Ianseo's own update
+process never touches — instead of directly into `Modules/Authentication/`,
+which an Ianseo update can (and does) wipe out entirely.
+
+## Why `Modules/Custom/` and not `Modules/Authentication/` directly
+
+Ianseo hard-codes a few paths under `Modules/Authentication/` in its own
+core (`Common/BlockDefines.php`'s `require_once('Modules/Authentication/
+BlockFunction.php')`, `config.php`'s `AuthFunctions.php` include) — it has
+no notion of `Modules/Custom/`-relative auth hooks. So that exact path has
+to exist on disk, but the directory itself isn't part of Ianseo's own
+versioned/preserved content (see the Ianseo checkout's `.gitignore`:
+`/Modules/Authentication`), so a code update that replaces Ianseo's files
+wipes it.
+
+The real module code lives in `Modules/Custom/Authentication/` instead —
+preserved across updates by Ianseo's own design (see `Modules/Custom/
+README.TXT` in the Ianseo checkout: "left untouched by the update
+process"). `Modules/Authentication/` becomes a disposable set of tiny
+forwarder files that just `require` the real code from `Modules/Custom/
+Authentication/`, regenerated automatically by `Bootstrap.php` whenever
+it's missing — no manual step needed after an update.
 
 ## Install
 
-1. Copy `Modules/Authentication` into the Ianseo root.
-2. In `config.php`, set:
+1. Copy `Custom/Authentication` into the Ianseo root's `Modules/Custom/`
+   (so the real files live at `Modules/Custom/Authentication/`).
+2. In Ianseo's root `config.php`, set:
 
 ```php
 $CFG->USERAUTH=true;
 ```
 
-3. Open Ianseo locally from the server machine and go to:
+3. Also in `config.php`, right after the `$CFG->USERAUTH` line, add the
+   safety-net snippet (see the `Ianseo` repo's own `config.php` for the
+   exact block — it's already there for any checkout pulled after this
+   module shipped; older/live instances need it pasted in once by hand):
+   it makes sure `Modules/Authentication/BlockFunction.php` exists
+   *before* `Common/BlockDefines.php`'s hard `require_once` on it runs —
+   without it, a wiped `Modules/Authentication/` with `USERAUTH=true`
+   would fatal-error on every request before `menu.php` (the module's
+   normal self-heal path, described below) is ever reached.
+4. Open Ianseo locally from the server machine and go to:
 
 ```text
 Modules/Authentication/index.php
 ```
 
+   (This works even before step 2 — `menu.php` self-heals unconditionally,
+   so the first-admin setup flow is reachable ahead of enabling `USERAUTH`.)
+
+Nothing under `Modules/Authentication/` should ever be hand-edited — it's
+regenerated on demand and any manual changes are silently overwritten the
+next time `Bootstrap.php` runs. Edit the files in `Modules/Custom/
+Authentication/` instead.
+
 ## Files
+
+All in `Custom/Authentication/` (deployed to Ianseo's `Modules/Custom/
+Authentication/`):
 
 - `AuthFunctions.php`: session/login helpers, user table bootstrap, password hashing.
 - `BlockFunction.php`: Ianseo ACL hook implementation.
@@ -29,7 +72,13 @@ Modules/Authentication/index.php
 - `CompetplusOAuth.php`: OAuth2/OIDC client (Authorization Code + PKCE) talking to
   `auth.competplus.fr`.
 - `CompetplusStart.php` / `CompetplusCallback.php`: entry/exit points of that flow.
-- `menu.php`: adds Authentication/Account/Logout menu entries when possible.
+- `menu.php`: adds Authentication/Account/Logout menu entries when possible, and self-heals
+  `Modules/Authentication/` on every menu build (Ianseo auto-includes any `Modules/Custom/*/
+  menu.php`, which is what makes this the natural self-heal hook — see `Bootstrap.php`).
+- `Bootstrap.php`: regenerates the forwarder files Ianseo expects at `Modules/Authentication/`.
+  Bump `$shimVersion` in here if you ever change what those forwarders contain, or add/remove a
+  module file, so existing installs pick up the change on their next request instead of keeping a
+  stale shim forever.
 - `Languages/<code>.php`: this module's own translation strings — see "Language" below.
 
 ## Language

@@ -5,7 +5,10 @@
  * already linked to a local account, see Account.php; NEVER creates an account) and 'link' (an
  * already-authenticated local user attaching their Compet+ identity).
  */
-require_once(dirname(__FILE__) . '/../../config.php');
+// Real module code lives in Modules/Custom/Authentication/ (one level
+// deeper than the public Modules/Authentication/ shim that forwards
+// here), hence the extra '../' compared to a plain Ianseo module.
+require_once(dirname(__FILE__) . '/../../../config.php');
 require_once(dirname(__FILE__) . '/CompetplusOAuth.php');
 
 function competplusCallbackRedirect($target, $message = '', $isError = true)

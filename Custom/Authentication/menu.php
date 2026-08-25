@@ -1,7 +1,17 @@
 <?php
+// This file lives in Modules/Custom/, the directory Ianseo's update process
+// never touches, and Ianseo auto-includes it on every menu build (that's
+// what makes this the right place to self-heal). The links below point at
+// Modules/Authentication/ — a small set of forwarder files regenerated here
+// on demand, since Ianseo core hard-codes that path (BlockDefines.php,
+// config.php) and can't be told to look in Modules/Custom/ instead. See
+// Bootstrap.php for the full explanation.
+require_once(dirname(__FILE__) . '/Bootstrap.php');
+competplusAuthEnsureShim($CFG->DOCUMENT_PATH);
+
 require_once(dirname(__FILE__) . '/AuthFunctions.php');
 
-$version = '2026-06-04 00:00:00';
+$version = '2026-08-25 00:00:00';
 $ret['AUTH'] [] = authText('MenuAccount') . '|' . $CFG->ROOT_DIR . 'Modules/Authentication/index.php';
 if ((!empty($_SESSION['AUTH_ROOT']) || empty($_SESSION['AUTH_ENABLE']))) {
     $ret['AUTH'][] = authText('MenuConfiguration') . '|' . $CFG->ROOT_DIR . 'Modules/Authentication/';
