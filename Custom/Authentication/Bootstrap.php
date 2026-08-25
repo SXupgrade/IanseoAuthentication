@@ -20,7 +20,10 @@
  *     and that happens on every request before menu.php is ever reached, so
  *     without this hook a wiped Modules/Authentication/ (e.g. right after an
  *     Ianseo update) would fatal-error every page load until someone noticed
- *     and restored it by hand.
+ *     and restored it by hand. This block is written into config.php by the
+ *     module itself (see ConfigWriter.php's authSetUserAuthEnabled()), the
+ *     moment USERAUTH is switched on from index.php's admin screen — nobody
+ *     ever needs to hand-edit config.php for this.
  *
  * Languages/*.php needs no forwarder: it's only ever reached through
  * AuthFunctions.php's own same-directory-relative glob

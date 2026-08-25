@@ -28,29 +28,42 @@ it's missing — no manual step needed after an update.
 
 1. Copy `Custom/Authentication` into the Ianseo root's `Modules/Custom/`
    (so the real files live at `Modules/Custom/Authentication/`).
-2. In Ianseo's root `config.php`, set:
-
-```php
-$CFG->USERAUTH=true;
-```
-
-3. Also in `config.php`, right after the `$CFG->USERAUTH` line, add the
-   safety-net snippet (see the `Ianseo` repo's own `config.php` for the
-   exact block — it's already there for any checkout pulled after this
-   module shipped; older/live instances need it pasted in once by hand):
-   it makes sure `Modules/Authentication/BlockFunction.php` exists
-   *before* `Common/BlockDefines.php`'s hard `require_once` on it runs —
-   without it, a wiped `Modules/Authentication/` with `USERAUTH=true`
-   would fatal-error on every request before `menu.php` (the module's
-   normal self-heal path, described below) is ever reached.
-4. Open Ianseo locally from the server machine and go to:
+2. Open Ianseo locally from the server machine and go to:
 
 ```text
 Modules/Authentication/index.php
 ```
 
-   (This works even before step 2 — `menu.php` self-heals unconditionally,
-   so the first-admin setup flow is reachable ahead of enabling `USERAUTH`.)
+   (This works even with `USERAUTH` still off — `menu.php` self-heals
+   `Modules/Authentication/` unconditionally, so the first-admin setup flow
+   and this admin screen are both reachable before authentication is ever
+   turned on.)
+3. Create the first administrator, then click **Enable authentication** at
+   the top of the admin screen.
+
+That last click is the only thing that actually turns the module on —
+there is no `config.php` line to edit by hand. It flips `$CFG->USERAUTH`
+in Ianseo's root `config.php` itself (`ConfigWriter.php`), and — the first
+time it's switched on — also installs a small safety-net block right there
+in `config.php`: it makes sure `Modules/Authentication/BlockFunction.php`
+exists *before* `Common/BlockDefines.php`'s hard `require_once` on it
+runs, on every request. Without it, an Ianseo update that wipes
+`Modules/Authentication/` while `USERAUTH` stays on would fatal-error
+every request before `menu.php` (the module's other, normal self-heal
+path, described below) is ever reached. `Ianseo`'s own repo is never
+touched for this — the module owns that block, in the live `config.php`,
+not in source control.
+
+That write is deliberately conservative: it requires an exact, single
+match on the `$CFG->USERAUTH` line before touching anything, takes a
+timestamped backup of `config.php` next to it before every write, and
+writes through a temp file + atomic rename rather than editing in place —
+see `ConfigWriter.php` for the details. If the web server can't write to
+`config.php` (common on some hosts), the toggle reports why and does
+nothing further; in that case set `$CFG->USERAUTH=true;` by hand instead
+and use the toggle later once permissions allow it (the safety-net block
+only ever gets installed through a successful toggle, so re-running it
+once permissions are fixed is what actually adds it).
 
 Nothing under `Modules/Authentication/` should ever be hand-edited — it's
 regenerated on demand and any manual changes are silently overwritten the
@@ -79,6 +92,9 @@ Authentication/`):
   Bump `$shimVersion` in here if you ever change what those forwarders contain, or add/remove a
   module file, so existing installs pick up the change on their next request instead of keeping a
   stale shim forever.
+- `ConfigWriter.php`: toggles `$CFG->USERAUTH` in Ianseo's root `config.php` from the admin
+  screen's "Enable/Disable authentication" button, and installs the safety-net block described
+  under "Install" above the first time it's switched on.
 - `Languages/<code>.php`: this module's own translation strings — see "Language" below.
 
 ## Language
@@ -168,11 +184,11 @@ fallback.
    on `competplus-platform`) with `redirect_uri` set to
    `https://your-ianseo-domain/Modules/Authentication/CompetplusCallback.php` (exact match
    required, no dynamic query string).
-2. In Ianseo's `config.php` (NOT part of this module — a per-deployment setting, exactly like
-   `$CFG->USERAUTH` above), add:
+2. Enable authentication from the admin screen (see "Install" above) if you haven't already, then
+   add the OAuth credentials to Ianseo's `config.php` by hand — these are Compet+ client
+   credentials, not something this module's own toggle manages:
 
 ```php
-$CFG->USERAUTH = true;
 $CFG->COMPETPLUS_AUTH = array(
     'client_id' => 'your-client-id',
     'client_secret' => 'the-secret-shown-once-at-creation',

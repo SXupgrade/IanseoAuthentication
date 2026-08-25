@@ -4,6 +4,7 @@
 // here), hence the extra '../' compared to a plain Ianseo module.
 require_once(dirname(__FILE__) . '/../../../config.php');
 require_once(dirname(__FILE__) . '/AuthFunctions.php');
+require_once(dirname(__FILE__) . '/ConfigWriter.php');
 
 authEnsureTables();
 $error = '';
@@ -171,6 +172,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $isSelfAction = $user !== '' && $user === ($_SESSION['AUTH_User'] ?? '');
     if (!authCsrfCheck()) {
         $error = authText('ErrCsrf');
+    } elseif ($action === 'toggle_userauth') {
+        $enable = empty($CFG->USERAUTH);
+        $writeError = '';
+        if (authSetUserAuthEnabled($CFG->DOCUMENT_PATH, $enable, $writeError)) {
+            $CFG->USERAUTH = $enable; // reflect the fresh on-disk state for the rest of this request
+            $message = $enable ? authText('MsgUserAuthEnabled') : authText('MsgUserAuthDisabled');
+        } else {
+            $error = authText('ErrUserAuthWrite', array('reason' => $writeError));
+        }
     } elseif ($user === '') {
         $error = authText('ErrUserRequired');
     } elseif ($action === 'save_user') {
@@ -280,6 +290,9 @@ include($CFG->DOCUMENT_PATH . 'Common/Templates/head.php');
 .auth-feature-row-root td{background:#fff8e7!important}.auth-permissions td.Center{text-align:center}.auth-muted{color:#667789}.auth-success{background:#eaf8ef;border:1px solid #9bd0a6;padding:10px 12px;border-radius:10px}.auth-error{background:#fdecec;border:1px solid #e0a0a0;padding:10px 12px;border-radius:10px}.cp-license-note{margin-top:14px;padding:10px 12px;border-radius:10px;background:#f3f7fb;border:1px solid #dde8f3;color:#46586d}.cp-lang-switch{text-align:right;font-size:.8rem;margin-bottom:10px}.cp-lang-switch a{color:#5f6f83;text-decoration:none}.cp-lang-switch a:hover{text-decoration:underline}
 
 .acc-toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:12px}
+.cp-module-status{padding:12px 14px;border:1px solid #dde6ef;border-radius:12px;background:#fafcff;margin-bottom:18px}
+.cp-module-status-sub{margin:6px 0 0;font-size:.85em;color:#5f6f83}
+.cp-module-status-sub .auth-badge{margin-right:6px}
 .acc-table-wrap{overflow-x:auto;border:1px solid #dde6ef;border-radius:14px;background:#fff;box-shadow:0 10px 24px rgba(30,55,90,.05)}
 .acc-table{width:100%;border-collapse:collapse;font-size:.9rem;min-width:560px}
 .acc-table th{background:#f7fafc;color:#5f6f83;font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:10px 14px;text-align:left;border-bottom:1.5px solid #e2e8f0}
@@ -327,6 +340,23 @@ include($CFG->DOCUMENT_PATH . 'Common/Templates/head.php');
     <?php if ($message) { ?><div class="auth-success"><?php echo htmlspecialchars($message); ?></div><?php } ?>
     <?php if ($error) { ?><div class="auth-error"><?php echo htmlspecialchars($error); ?></div><?php } ?>
     <p class="cp-license-note"><?php echo authText('FooterAdminCredit', array('a' => '<a href="https://competplus.fr" target="_blank" rel="noopener noreferrer">Compet+</a>')); ?></p>
+
+    <div class="acc-toolbar cp-module-status">
+        <div>
+            <h2 style="margin:0"><?php echo htmlspecialchars(authText('SectionModuleStatus')); ?></h2>
+            <p class="cp-module-status-sub">
+                <span class="auth-badge <?php echo $CFG->USERAUTH ? 'on' : 'off'; ?>">
+                    <?php echo htmlspecialchars($CFG->USERAUTH ? authText('StatusEnabled') : authText('StatusDisabled')); ?>
+                </span>
+                <?php echo htmlspecialchars($CFG->USERAUTH ? authText('ModuleStatusOnHint') : authText('ModuleStatusOffHint')); ?>
+            </p>
+        </div>
+        <form method="post" onsubmit="return confirm('<?php echo htmlspecialchars(addslashes($CFG->USERAUTH ? authText('ConfirmDisableModule') : authText('ConfirmEnableModule')), ENT_QUOTES); ?>')">
+            <?php echo authCsrfField(); ?>
+            <input type="hidden" name="action" value="toggle_userauth">
+            <input type="submit" class="cp-btn" value="<?php echo htmlspecialchars($CFG->USERAUTH ? authText('BtnDisableModule') : authText('BtnEnableModule')); ?>">
+        </form>
+    </div>
 
     <div class="acc-toolbar">
         <h2 style="margin:0;flex:1"><?php echo htmlspecialchars(authText('SectionUsers')); ?></h2>
