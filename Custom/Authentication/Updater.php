@@ -328,8 +328,19 @@ if (!function_exists('authUpdaterApplyUpdate')) {
         }
 
         $moduleDir = rtrim($documentPath, '/\\') . '/Modules/Custom/Authentication';
-        $stagingDir = $moduleDir . '-staging-' . uniqid('', true);
-        $backupDir = $moduleDir . '-backup-' . date('Ymd-His');
+        // Staging/backup dirs must NOT be direct children of Modules/Custom/ named
+        // "Authentication-something": Ianseo's own menu builder globs Modules/Custom/*/menu.php,
+        // one path segment, no further filtering -- a sibling like Authentication-backup-<ts>/
+        // matches that glob just as well as Authentication/ does, and since it's a full copy it
+        // has its own menu.php, so Ianseo would load BOTH and immediately fatal-error on every
+        // function they both declare (found by testing this against a real Ianseo instance).
+        // A dot-prefixed *containing* directory is never matched by a bare "*" glob segment, and
+        // nothing has a menu.php directly inside .authentication-backups/ itself (only one level
+        // deeper, inside each timestamped subfolder) -- so this is safe however "*" and dotfiles
+        // interact in a given PHP glob() build, not just relying on this one build's specific
+        // behavior. Same filesystem as the live module either way, so rename() stays atomic.
+        $stagingDir = rtrim($documentPath, '/\\') . '/Modules/Custom/.authentication-staging/' . uniqid('', true);
+        $backupDir = rtrim($documentPath, '/\\') . '/Modules/Custom/.authentication-backups/' . date('Ymd-His');
 
         // Build the new version fully in a staging dir first, untouched by the live one -- if
         // this fails partway (disk full, permissions...), nothing about the live install has been
@@ -341,6 +352,14 @@ if (!function_exists('authUpdaterApplyUpdate')) {
             return false;
         }
         authUpdaterRemoveDir($extractDir);
+
+        // rename() needs its destination's parent to already exist (unlike mkdir(..., true), it
+        // won't create it) -- .authentication-backups/ may not exist yet on the very first update.
+        if (!is_dir(dirname($backupDir)) && !@mkdir(dirname($backupDir), 0755, true)) {
+            authUpdaterRemoveDir($stagingDir);
+            $error = 'Impossible de préparer le dossier de sauvegarde -- rien n\'a été modifié.';
+            return false;
+        }
 
         // Only two fast, same-filesystem, atomic rename()s touch the live directory. The PHP
         // process currently executing this request keeps running fine even though its own source

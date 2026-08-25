@@ -122,12 +122,20 @@ Clicking it:
 1. Downloads that tag's source as a zip directly from GitHub (`zipball_url` from the same tags
    API call, no separate lookup).
 2. Extracts it to a temp directory and builds the new `Modules/Custom/Authentication/` fully in a
-   fresh staging directory next to the live one — the live install isn't touched at all while this
-   runs, so a failure here (disk full, permissions, a bad download) leaves it exactly as it was.
+   fresh staging directory (`Modules/Custom/.authentication-staging/<id>/`) — the live install
+   isn't touched at all while this runs, so a failure here (disk full, permissions, a bad
+   download) leaves it exactly as it was.
 3. Only once that staging copy fully succeeds: two fast `rename()` calls swap the live directory
-   out to a timestamped backup (`Modules/Custom/Authentication-backup-<timestamp>/`, kept
+   out to a timestamped backup (`Modules/Custom/.authentication-backups/<timestamp>/`, kept
    indefinitely — delete old ones by hand whenever) and the staged one in. If the second rename
    fails, the first is rolled back automatically — the live install is never left half-updated.
+
+   Both of those live under a dot-prefixed directory on purpose (see `Updater.php`): Ianseo's own
+   menu builder globs `Modules/Custom/*/menu.php`, one path segment, no further filtering — a
+   plain sibling like `Authentication-backup-<timestamp>/` matches that glob exactly as well as
+   `Authentication/` does, and since it's a full copy it has its own `menu.php` too, so Ianseo
+   would load *both* and immediately fatal-error the moment they both declare the same function.
+   A dot-prefixed containing directory is never matched by a bare `*` glob segment.
 
 The repo to check (`SXupgrade/IanseoAuthentication`) is a hardcoded constant in `Updater.php`, not
 read from `$CFG` or any request input, so there's no way to point this at anything other than the
