@@ -26,7 +26,7 @@ it's missing — no manual step needed after an update.
 
 ## Install
 
-1. Copy `Custom/Authentication` into the Ianseo root's `Modules/Custom/`
+1. Copy this repo's `Authentication/` into the Ianseo root's `Modules/Custom/`
    (so the real files live at `Modules/Custom/Authentication/`).
 2. Open Ianseo locally from the server machine and go to:
 
@@ -42,28 +42,36 @@ Modules/Authentication/index.php
    the top of the admin screen.
 
 That last click is the only thing that actually turns the module on —
-there is no `config.php` line to edit by hand. It flips `$CFG->USERAUTH`
-in Ianseo's root `config.php` itself (`ConfigWriter.php`), and — the first
-time it's switched on — also installs a small safety-net block right there
-in `config.php`: it makes sure `Modules/Authentication/BlockFunction.php`
+there is no config line to edit by hand. It flips `$CFG->USERAUTH`
+in Ianseo's `Common/config.inc.php` (`ConfigWriter.php`), and — every
+time it's toggled — also (re)installs a small safety-net block right
+there: it makes sure `Modules/Authentication/BlockFunction.php`
 exists *before* `Common/BlockDefines.php`'s hard `require_once` on it
 runs, on every request. Without it, an Ianseo update that wipes
 `Modules/Authentication/` while `USERAUTH` stays on would fatal-error
 every request before `menu.php` (the module's other, normal self-heal
 path, described below) is ever reached. `Ianseo`'s own repo is never
-touched for this — the module owns that block, in the live `config.php`,
-not in source control.
+touched for this — the module owns that block, in the live
+`Common/config.inc.php`, not in source control.
 
-That write is deliberately conservative: it requires an exact, single
-match on the `$CFG->USERAUTH` line before touching anything, takes a
-timestamped backup of `config.php` next to it before every write, and
-writes through a temp file + atomic rename rather than editing in place —
-see `ConfigWriter.php` for the details. If the web server can't write to
-`config.php` (common on some hosts), the toggle reports why and does
-nothing further; in that case set `$CFG->USERAUTH=true;` by hand instead
-and use the toggle later once permissions allow it (the safety-net block
-only ever gets installed through a successful toggle, so re-running it
-once permissions are fixed is what actually adds it).
+`Common/config.inc.php` on purpose, not `config.php`: the latter ships as
+part of Ianseo's own core and gets replaced wholesale by every official
+Ianseo update (`Update/UpdateIanseo.php` MD5-diffs and rewrites every core
+file), which would silently wipe both `$CFG->USERAUTH` and the safety-net
+block on the very next update — exactly the failure mode the safety net
+exists to prevent, just through a different door. `Common/config.inc.php`
+is the installation-specific settings file (DB credentials, etc.) that
+config.php itself includes right after setting `$CFG->USERAUTH=false` as
+its shipped default, and Ianseo's own updater never touches it.
+
+That write is deliberately conservative: it takes a timestamped backup of
+`Common/config.inc.php` next to it before every write, and writes through
+a temp file + atomic rename rather than editing in place — see
+`ConfigWriter.php` for the details. If the web server can't write to
+`Common/config.inc.php` (common on some hosts), the toggle reports why and
+does nothing further; in that case add the managed block by hand instead
+(see `authConfigWriterManagedBlock()` in `ConfigWriter.php` for its exact
+contents) and use the toggle later once permissions allow it.
 
 Nothing under `Modules/Authentication/` should ever be hand-edited — it's
 regenerated on demand and any manual changes are silently overwritten the
@@ -72,7 +80,7 @@ Authentication/` instead.
 
 ## Files
 
-All in `Custom/Authentication/` (deployed to Ianseo's `Modules/Custom/
+All in this repo's `Authentication/` (deployed to Ianseo's `Modules/Custom/
 Authentication/`):
 
 - `AuthFunctions.php`: session/login helpers, user table bootstrap, password hashing.
@@ -98,9 +106,9 @@ Authentication/`):
   alone said "up to date" while the module was actually broken. `Bootstrap.php` now also checks
   that every expected file still physically exists before trusting the marker — a stale-but-present
   marker with even one file missing triggers a full regeneration, same as if the marker were gone.
-- `ConfigWriter.php`: toggles `$CFG->USERAUTH` in Ianseo's root `config.php` from the admin
-  screen's "Enable/Disable authentication" button, and installs the safety-net block described
-  under "Install" above the first time it's switched on.
+- `ConfigWriter.php`: toggles `$CFG->USERAUTH` in Ianseo's `Common/config.inc.php` from the admin
+  screen's "Enable/Disable authentication" button, and (re)installs the safety-net block described
+  under "Install" above on every toggle.
 - `Updater.php`: checks GitHub for a newer version and applies it — see "Versioning and
   self-update" below.
 - `VERSION`: the version currently installed (plain semver text, e.g. `1.1.0`) — compared against
@@ -112,7 +120,8 @@ Authentication/`):
 
 Releases are plain git tags on this repo (`vX.Y.Z`, e.g. `v1.1.0`) — no separate "publish a
 release" step needed, `git tag vX.Y.Z && git push origin vX.Y.Z` is the whole release process.
-`VERSION` inside `Custom/Authentication/` tracks which one is currently installed.
+`VERSION` (this repo's `Authentication/VERSION`, deployed to `Modules/Custom/Authentication/VERSION`)
+tracks which one is currently installed.
 
 The admin screen (`index.php`) checks the highest `vX.Y.Z` tag on
 `github.com/SXupgrade/IanseoAuthentication` against the installed `VERSION` — cached for 6 hours
@@ -150,8 +159,8 @@ real module repo. Same trust model as Ianseo's own self-updater
 extra signature layer on top.
 
 Needs the PHP `zip` extension (`ZipArchive`) — the update button reports clearly if it's missing
-instead of silently doing nothing; install the new `Custom/Authentication/` by hand in that case,
-same as step 1 of "Install" above.
+instead of silently doing nothing; install the new `Authentication/` by hand in that case, same
+as step 1 of "Install" above.
 
 **An install running a version from *before* this feature existed can't discover or apply updates
 on its own** — it has no `VERSION` file or `Updater.php` yet, so there's nothing to click. That one

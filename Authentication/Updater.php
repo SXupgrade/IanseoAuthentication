@@ -5,7 +5,7 @@
  * "Enable/Disable" screen (same $canAdmin gate as everything else there) — downloads that tag's
  * source, and atomically swaps it in for the currently-running Modules/Custom/Authentication/.
  *
- * Versioning: a plain VERSION file (semver, no "v" prefix) shipped inside Custom/Authentication/
+ * Versioning: a plain VERSION file (semver, no "v" prefix) shipped inside Authentication/
  * itself, compared against the highest vX.Y.Z git tag on the repo (see authUpdaterFetchLatestTag()
  * -- tags are fetched, not GitHub Releases, so cutting a release is just `git tag vX.Y.Z && git
  * push origin vX.Y.Z`, no separate "publish a release" step required).
@@ -320,10 +320,13 @@ if (!function_exists('authUpdaterApplyUpdate')) {
             $error = 'Structure de l\'archive téléchargée inattendue.';
             return false;
         }
-        $sourceDir = $extractDir . '/' . $entries[0] . '/Custom/Authentication';
+        // Le dépôt source place désormais Authentication/ directement à sa racine (avant :
+        // Custom/Authentication/) -- voir le commit "Move folder". Le zip GitHub reflète donc
+        // cette même racine.
+        $sourceDir = $extractDir . '/' . $entries[0] . '/Authentication';
         if (!is_dir($sourceDir) || !is_file($sourceDir . '/VERSION')) {
             authUpdaterRemoveDir($extractDir);
-            $error = 'L\'archive téléchargée ne contient pas de module valide (Custom/Authentication introuvable).';
+            $error = 'L\'archive téléchargée ne contient pas de module valide (Authentication introuvable).';
             return false;
         }
 
