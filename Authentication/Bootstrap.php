@@ -14,16 +14,18 @@
  *     healed during normal browsing, including before USERAUTH is ever
  *     turned on (the "Account" link needs Modules/Authentication/index.php
  *     to exist for initial setup).
- *   - Ianseo's root config.php, right after $CFG->USERAUTH is set — the path
- *     that actually matters: Common/BlockDefines.php hard-requires
+ *   - Ianseo's Common/config.inc.php, right after $CFG->USERAUTH is set — the
+ *     path that actually matters: Common/BlockDefines.php hard-requires
  *     Modules/Authentication/BlockFunction.php as soon as USERAUTH is true,
  *     and that happens on every request before menu.php is ever reached, so
  *     without this hook a wiped Modules/Authentication/ (e.g. right after an
  *     Ianseo update) would fatal-error every page load until someone noticed
- *     and restored it by hand. This block is written into config.php by the
+ *     and restored it by hand. This block is written into Common/config.inc.php
+ *     (not config.php, which Ianseo's own core updater replaces wholesale on
+ *     every update — see ConfigWriter.php's own docblock for why) by the
  *     module itself (see ConfigWriter.php's authSetUserAuthEnabled()), the
  *     moment USERAUTH is switched on from index.php's admin screen — nobody
- *     ever needs to hand-edit config.php for this.
+ *     ever needs to hand-edit any config file for this.
  *
  * Languages/*.php needs no forwarder: it's only ever reached through
  * AuthFunctions.php's own same-directory-relative glob

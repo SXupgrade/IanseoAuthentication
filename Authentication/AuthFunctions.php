@@ -686,10 +686,11 @@ function authRequireLoginForRequest($force = false)
 
 
 // ── "Se connecter avec Compet+" (auth.competplus.fr) ──────────────────────────
-// Config lives in Ianseo's own config.php (site-owner-controlled, like $CFG->USERAUTH), NOT in
-// this module -- see README.md "Compet+ federated login" for the block to add. Never assume a
-// default client_id/secret: the feature is simply hidden (button not shown, entry points refuse)
-// until an admin configures it.
+// Config lives in Ianseo's own Common/config.inc.php (site-owner-controlled, like
+// $CFG->USERAUTH -- not config.php, which Ianseo's own core updater replaces wholesale on every
+// update), NOT in this module -- see README.md "Compet+ federated login" for the block to add.
+// Never assume a default client_id/secret: the feature is simply hidden (button not shown, entry
+// points refuse) until an admin configures it.
 function authCompetplusConfig()
 {
     global $CFG;
