@@ -255,8 +255,10 @@ fallback.
    `https://your-ianseo-domain/Modules/Authentication/CompetplusCallback.php` (exact match
    required, no dynamic query string).
 2. Enable authentication from the admin screen (see "Install" above) if you haven't already, then
-   add the OAuth credentials to Ianseo's `config.php` by hand — these are Compet+ client
-   credentials, not something this module's own toggle manages:
+   add the OAuth credentials to Ianseo's `Common/config.inc.php` by hand — not `config.php`,
+   which Ianseo's own core updater replaces wholesale on every update and would silently wipe
+   these credentials on the next one (same reasoning as `$CFG->USERAUTH` itself, see "Install"
+   above). These are Compet+ client credentials, not something this module's own toggle manages:
 
 ```php
 $CFG->COMPETPLUS_AUTH = array(
