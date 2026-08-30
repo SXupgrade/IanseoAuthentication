@@ -293,11 +293,15 @@ $CFG->COMPETPLUS_AUTH = array(
 );
 ```
 
-The "Se connecter avec Compet+" button only appears once this block is present with a non-empty
-`client_id`/`redirect_uri` — omit it (or leave a key empty) to keep the feature entirely hidden.
-"Sign in with a code" appears under the exact same condition and needs no config of its own — the
-device flow it drives never actually uses `redirect_uri`, but the config as a whole is still
-gated on it being present (same block, same one-time setup).
+The feature as a whole (both buttons) is hidden until this block is present with a non-empty
+`client_id` — omit it (or leave it empty) to keep everything hidden. `redirect_uri` gates only the
+"Se connecter avec Compet+" button specifically: an install with no fixed, reliably-reachable
+public URL (dynamic port, LAN-only, no domain yet) can leave it empty and still get "Sign in with
+a code", since the device flow never presents a `redirect_uri` to `auth.competplus.fr` at all. This
+is exactly the shape `Modules/Custom/competplus/`'s own "Enable Compet+ sign-in" toggle produces
+when it self-registers a client automatically instead of a Compet+ admin issuing one by hand (see
+that repo's own `PATCH_NOTES.md`) — same config block, same two functions gating each button
+(`authCompetplusEnabled()`/`authCompetplusHasRedirectFlow()` in `AuthFunctions.php`).
 
 ### Not yet implemented
 

@@ -694,6 +694,12 @@ function authRequireLoginForRequest($force = false)
 // update), NOT in this module -- see README.md "Compet+ federated login" for the block to add.
 // Never assume a default client_id/secret: the feature is simply hidden (button not shown, entry
 // points refuse) until an admin configures it.
+//
+// redirect_uri is the one field NOT required here (unlike client_id) -- an installation
+// self-registered via compet+'s own "Connexion avec un compte Compet+" toggle may have no fixed,
+// reliably-reachable URL to register one for, in which case only the device-code button
+// (CompetplusDeviceLogin.php) can work; see authCompetplusHasRedirectFlow() below for the finer
+// gate the redirect-based button itself needs.
 function authCompetplusConfig()
 {
     global $CFG;
@@ -702,8 +708,7 @@ function authCompetplusConfig()
     }
     $cfg = $CFG->COMPETPLUS_AUTH;
     $clientId = trim((string)($cfg['client_id'] ?? ''));
-    $redirectUri = trim((string)($cfg['redirect_uri'] ?? ''));
-    if ($clientId === '' || $redirectUri === '') {
+    if ($clientId === '') {
         return null;
     }
     return array(
@@ -717,13 +722,25 @@ function authCompetplusConfig()
         // token exchange (opaque platform session tokens are valid across all Compet+ apps, not
         // just auth -- see competplus_current_user() on the platform side).
         'cloud_base_url' => rtrim((string)($cfg['cloud_base_url'] ?? 'https://cloud.competplus.fr'), '/'),
-        'redirect_uri' => $redirectUri,
+        'redirect_uri' => trim((string)($cfg['redirect_uri'] ?? '')),
     );
 }
 
+// Gates the device-code button (CompetplusDeviceLogin.php) -- the only requirement is a
+// configured client_id, since the Device Authorization Grant never presents a redirect_uri to
+// auth.competplus.fr at all.
 function authCompetplusEnabled()
 {
     return authCompetplusConfig() !== null;
+}
+
+// Gates the classic redirect-based button (CompetplusStart.php) specifically -- needs a
+// non-empty redirect_uri on top of authCompetplusEnabled(), which an install with no fixed,
+// reliably-reachable URL may not have (see authCompetplusConfig() above).
+function authCompetplusHasRedirectFlow()
+{
+    $config = authCompetplusConfig();
+    return $config !== null && $config['redirect_uri'] !== '';
 }
 
 // Local account currently linked to a given Compet+ identity ("sub"), or null.

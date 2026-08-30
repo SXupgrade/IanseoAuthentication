@@ -18,6 +18,18 @@ if ($mode === 'link' && empty($_SESSION['AUTH_User'])) {
     die();
 }
 
+// Defense in depth: the button itself is only ever rendered when
+// authCompetplusHasRedirectFlow() is true (LogIn.php/Account.php), but this entry point stays
+// directly reachable by URL regardless -- an install with no redirect_uri configured (device-code
+// only, see AuthFunctions.php's authCompetplusConfig()) must refuse cleanly here too, not attempt
+// a redirect with an empty redirect_uri.
+if (!authCompetplusHasRedirectFlow()) {
+    error_log('[CompetplusStart] Reached with no redirect_uri configured (device-code-only install).');
+    $target = $mode === 'link' ? './Account.php' : './LogIn.php';
+    CD_redirect($target . '?competplus_error=' . rawurlencode(authText('MsgCompetplusUnavailable')));
+    die();
+}
+
 try {
     $url = authCompetplusAuthorizeUrl(
         $mode,

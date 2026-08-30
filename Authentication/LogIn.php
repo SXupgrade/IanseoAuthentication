@@ -95,11 +95,13 @@ include($CFG->DOCUMENT_PATH . 'Common/Templates/head.php');
         </form>
         <?php if (authCompetplusEnabled()) { ?>
         <p style="text-align:center;color:#5f6f83;margin:14px 0"><?php echo htmlspecialchars(authText('Or')); ?></p>
+        <?php if (authCompetplusHasRedirectFlow()) { ?>
         <p style="text-align:center">
             <a class="cp-btn" href="CompetplusStart.php<?php echo $returnUrl !== '' ? '?return=' . rawurlencode($returnUrl) : ''; ?>"><?php echo htmlspecialchars(authText('BtnLoginWithCompetplus')); ?></a>
         </p>
+        <?php } ?>
         <p style="text-align:center">
-            <a href="CompetplusDeviceLogin.php<?php echo $returnUrl !== '' ? '?return=' . rawurlencode($returnUrl) : ''; ?>"><?php echo htmlspecialchars(authText('BtnLoginWithCompetplusDevice')); ?></a>
+            <a<?php echo authCompetplusHasRedirectFlow() ? '' : ' class="cp-btn"'; ?> href="CompetplusDeviceLogin.php<?php echo $returnUrl !== '' ? '?return=' . rawurlencode($returnUrl) : ''; ?>"><?php echo htmlspecialchars(authText('BtnLoginWithCompetplusDevice')); ?></a>
         </p>
         <?php } ?>
     <?php } ?>
