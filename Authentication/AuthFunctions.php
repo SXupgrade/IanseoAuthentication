@@ -575,7 +575,9 @@ function authIsPublicRequest()
     // Authentication module entry points must remain reachable without a session.
     // CompetplusStart.php/CompetplusCallback.php: entry/exit points of the "Se connecter avec
     // Compet+" federated login (see CompetplusOAuth.php) -- reached before any local session
-    // exists, exactly like LogIn.php/LogOut.php below.
+    // exists, exactly like LogIn.php/LogOut.php below. CompetplusDeviceLogin.php: same thing for
+    // the Device Authorization Grant flow (see CompetplusDeviceAuth.php) -- one page handles both
+    // the initial load and its own AJAX poll action, both unauthenticated.
     $publicFragments = array(
         '/modules/authentication/login.php',
         '/modules/authentication/logout.php',
@@ -583,6 +585,7 @@ function authIsPublicRequest()
         '/modules/authentication/blockfunction.php',
         '/modules/authentication/competplusstart.php',
         '/modules/authentication/competpluscallback.php',
+        '/modules/authentication/competplusdevicelogin.php',
     );
     foreach ($publicFragments as $fragment) {
         if (strpos($pathLower, $fragment) !== false) {

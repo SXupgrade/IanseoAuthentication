@@ -98,6 +98,9 @@ include($CFG->DOCUMENT_PATH . 'Common/Templates/head.php');
         <p style="text-align:center">
             <a class="cp-btn" href="CompetplusStart.php<?php echo $returnUrl !== '' ? '?return=' . rawurlencode($returnUrl) : ''; ?>"><?php echo htmlspecialchars(authText('BtnLoginWithCompetplus')); ?></a>
         </p>
+        <p style="text-align:center">
+            <a href="CompetplusDeviceLogin.php<?php echo $returnUrl !== '' ? '?return=' . rawurlencode($returnUrl) : ''; ?>"><?php echo htmlspecialchars(authText('BtnLoginWithCompetplusDevice')); ?></a>
+        </p>
         <?php } ?>
     <?php } ?>
     <div class="cp-auth-note"><?php echo authText('NoteMadeAvailable', array('a' => '<a href="https://competplus.fr" target="_blank" rel="noopener noreferrer">Compet+</a>')); ?></div>

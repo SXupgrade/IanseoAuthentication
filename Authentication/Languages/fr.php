@@ -27,6 +27,16 @@ $lang = array(
     'MsgNoAccountLinked'       => 'Aucun compte Ianseo n\'est encore lié à cette identité Compet+. Connectez-vous avec votre identifiant local, puis liez votre compte depuis « Mon compte ».',
     'MsgUnlinked'              => 'Votre compte Compet+ a été délié.',
 
+    // ── Connexion Compet+ par code (CompetplusDeviceLogin.php) ──────────────
+    'BtnLoginWithCompetplusDevice' => 'Se connecter avec un code',
+    'DeviceLoginTitle'             => 'Se connecter avec Compet+',
+    'DeviceLoginInstructions'      => 'Sur un autre appareil, connectez-vous à votre compte Compet+ et saisissez ce code :',
+    'DeviceLoginOpenLink'          => 'Ouvrir la page de vérification',
+    'DeviceLoginWaiting'           => 'En attente d\'approbation…',
+    'DeviceLoginBackToLogin'       => 'Retour à la connexion',
+    'MsgDeviceLoginExpired'        => 'Ce code a expiré. Veuillez réessayer.',
+    'MsgDeviceLoginDenied'         => 'La demande a été refusée sur votre autre appareil.',
+
     // ── LogIn.php ────────────────────────────────────────────────────────────
     'PageTitleSetup'         => 'Configuration de l\'authentification',
     'PageTitleLogin'         => 'Authentification',

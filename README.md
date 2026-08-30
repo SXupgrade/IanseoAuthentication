@@ -85,14 +85,20 @@ Authentication/`):
 
 - `AuthFunctions.php`: session/login helpers, user table bootstrap, password hashing.
 - `BlockFunction.php`: Ianseo ACL hook implementation.
-- `LogIn.php`: login page (local form + optional "Se connecter avec Compet+" button).
+- `LogIn.php`: login page (local form + optional "Se connecter avec Compet+" buttons — redirect
+  and device-code, see "Compet+ federated login" below).
 - `LogOut.php`: logout action.
 - `index.php`: minimal admin page for users and tournament/feature rules.
 - `Account.php`: self-service page for the CURRENTLY logged-in user to link/unlink their Compet+
   identity — see "Compet+ federated login" below.
 - `CompetplusOAuth.php`: OAuth2/OIDC client (Authorization Code + PKCE) talking to
-  `auth.competplus.fr`.
-- `CompetplusStart.php` / `CompetplusCallback.php`: entry/exit points of that flow.
+  `auth.competplus.fr`; also holds `competplusResolveLoginUser()`, the identity-to-local-account
+  matching logic shared by both the redirect flow and the device flow below.
+- `CompetplusStart.php` / `CompetplusCallback.php`: entry/exit points of the redirect-based flow.
+- `CompetplusDeviceAuth.php`: Device Authorization Grant (RFC 8628) client, same reused
+  `client_id`/`client_secret` as the redirect flow.
+- `CompetplusDeviceLogin.php`: the device flow's single page — starts the flow, shows the code,
+  and (its own AJAX poll action) waits for approval.
 - `menu.php`: adds Authentication/Account/Logout menu entries when possible, and self-heals
   `Modules/Authentication/` on every menu build (Ianseo auto-includes any `Modules/Custom/*/
   menu.php`, which is what makes this the natural self-heal hook — see `Bootstrap.php`).
@@ -238,7 +244,7 @@ paths, never by creating one:
    the rest of the flow.
 
 Neither automatic path ever re-pairs a local account that already has a *different* Compet+
-identity linked (see `competplusTryPairCandidate()` in `CompetplusCallback.php` for the shared
+identity linked (see `competplusTryPairCandidate()` in `CompetplusOAuth.php` for the shared
 guard) — that case simply falls through to the "no account linked" message below, same as any
 other non-match.
 
@@ -246,7 +252,24 @@ Either way, from then on that person can log in via the "Se connecter avec Compe
 `LogIn.php` — it looks up the Compet+ `sub` in `AclUserExternalAuth` and signs in directly if a
 match exists, or (after also trying the two automatic pairing fallbacks above) sends them back to
 the local login form with an explanatory message if nothing matches — never a silent/degraded
-fallback.
+fallback. All of this matching logic (`competplusResolveLoginUser()`, `CompetplusOAuth.php`) is
+shared verbatim by the device-code flow below — which identity a visitor ends up with doesn't
+depend on which of the two flows they used to get it.
+
+### Device-code login (no redirect needed)
+
+`LogIn.php` also offers "Sign in with a code" — the OAuth2 Device Authorization Grant
+([RFC 8628](https://www.rfc-editor.org/rfc/rfc8628)), reusing the exact same
+`client_id`/`client_secret` configured below (`auth.competplus.fr` treats it as the same
+confidential client, just a different grant at the token endpoint — nothing new to register).
+Useful whenever this Ianseo install's own URL isn't a reliable `redirect_uri` (shared hosting, a
+WAMP box, a dynamic LAN address...): the visitor gets a short code and a link to
+`auth.competplus.fr/device`, opens it on **any** other device already signed in to their Compet+
+account, approves there, and this page (polling a same-file AJAX action —
+`CompetplusDeviceLogin.php?ajax=poll` — the one deliberate, narrow exception to this module's
+plain-POST-forms/full-page-reload style) picks up the approval and signs them in, exactly as if
+they'd used the redirect button. Same "never creates an account" rule, same three matching paths
+above, same `AclUserExternalAuth` table.
 
 ### Enable it
 
@@ -272,6 +295,9 @@ $CFG->COMPETPLUS_AUTH = array(
 
 The "Se connecter avec Compet+" button only appears once this block is present with a non-empty
 `client_id`/`redirect_uri` — omit it (or leave a key empty) to keep the feature entirely hidden.
+"Sign in with a code" appears under the exact same condition and needs no config of its own — the
+device flow it drives never actually uses `redirect_uri`, but the config as a whole is still
+gated on it being present (same block, same one-time setup).
 
 ### Not yet implemented
 

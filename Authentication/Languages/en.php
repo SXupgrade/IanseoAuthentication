@@ -30,6 +30,16 @@ $lang = array(
     'MsgNoAccountLinked'       => 'No Ianseo account is linked to this Compet+ identity yet. Log in with your local credentials, then link your account from "My account".',
     'MsgUnlinked'              => 'Your Compet+ account has been unlinked.',
 
+    // ── Compet+ device login flow (CompetplusDeviceLogin.php) ──────────────
+    'BtnLoginWithCompetplusDevice' => 'Sign in with a code',
+    'DeviceLoginTitle'             => 'Sign in with Compet+',
+    'DeviceLoginInstructions'      => 'On another device, sign in to your Compet+ account and enter this code:',
+    'DeviceLoginOpenLink'          => 'Open the verification page',
+    'DeviceLoginWaiting'           => 'Waiting for approval…',
+    'DeviceLoginBackToLogin'       => 'Back to login',
+    'MsgDeviceLoginExpired'        => 'This code has expired. Please try again.',
+    'MsgDeviceLoginDenied'         => 'The request was declined on your other device.',
+
     // ── LogIn.php ────────────────────────────────────────────────────────────
     'PageTitleSetup'         => 'Authentication setup',
     'PageTitleLogin'         => 'Authentication',

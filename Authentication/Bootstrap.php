@@ -41,7 +41,7 @@ if (!function_exists('competplusAuthEnsureShim')) {
         // real file is added to the module), so existing installs pick up
         // the change on their next request instead of keeping a stale shim
         // forever.
-        $shimVersion = '2026-08-25.2';
+        $shimVersion = '2026-08-30.1';
 
         $shimDir = rtrim($documentPath, '/\\') . '/Modules/Authentication';
         $marker = $shimDir . '/.shim-version';
@@ -53,12 +53,14 @@ if (!function_exists('competplusAuthEnsureShim')) {
             'AuthFunctions.php' => 'lib',
             'BlockFunction.php' => 'lib',
             'CompetplusOAuth.php' => 'lib',
+            'CompetplusDeviceAuth.php' => 'lib',
             'index.php' => 'entry',
             'LogIn.php' => 'entry',
             'LogOut.php' => 'entry',
             'Account.php' => 'entry',
             'CompetplusStart.php' => 'entry',
             'CompetplusCallback.php' => 'entry',
+            'CompetplusDeviceLogin.php' => 'entry',
         );
 
         // Real-world observed failure: Ianseo's own self-updater (Update/UpdateIanseo.php)
