@@ -65,7 +65,9 @@ include($CFG->DOCUMENT_PATH . 'Common/Templates/head.php');
         </form>
     <?php } else { ?>
         <div class="cp-account-status unlinked"><?php echo htmlspecialchars(authText('NotLinkedYet')); ?></div>
+        <?php if (authCompetplusHasRedirectFlow()) { ?>
         <a class="cp-btn" href="CompetplusStart.php?mode=link"><?php echo htmlspecialchars(authText('BtnLinkAccount')); ?></a>
+        <?php } ?>
     <?php } ?>
   </div>
 </div>
